@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChemLab — Fórmulas Químicas</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAbca2JHCBSgDYATMk2mfWRR6VdOQnsQLw",
+  authDomain: "shiptrack-653c1.firebaseapp.com",
+  projectId: "shiptrack-653c1",
+  storageBucket: "shiptrack-653c1.firebasestorage.app",
+  messagingSenderId: "753521952783",
+  appId: "1:753521952783:web:6b6dda102e3e2fcacf7b7a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+async function loadAll() {
+  showLoader(true);
+  try {
+    const [snapP, snapM] = await Promise.all([
+      getDocs(collection(db, 'quimicos_productos')),
+      getDocs(collection(db, 'quimicos_marcas'))
+    ]);
+    state.productos = snapP.docs.map(d => ({ _id: d.id, ...d.data() }));
+    state.marcas = snapM.docs.map(d => ({ _id: d.id, nombre: d.data().nombre }));
+  } catch(e) {
+    console.error(e);
+    showToast('Error conectando con la base de datos', true);
+  }
+  showLoader(false);
+  renderApp();
+}
+
+window.fbGuardarProducto = async function(prod) {
+  const ref = await addDoc(collection(db, 'quimicos_productos'), prod);
+  prod._id = ref.id;
+  state.productos.push(prod);
+};
+
+window.fbEliminarProducto = async function(id) {
+  await deleteDoc(doc(db, 'quimicos_productos', id));
+};
+
+window.fbActualizarProducto = async function(id, data) {
+  await setDoc(doc(db, 'quimicos_productos', id), data, { merge: true });
+};
+
+// ── HISTORIAL: ver script principal ──
+
+window.fbAddMarca = async function(nombre) {
+  const ref = await addDoc(collection(db, 'quimicos_marcas'), { nombre });
+  return ref.id;
+};
+window.fbRemoveMarca = async function(id) {
+  await deleteDoc(doc(db, 'quimicos_marcas', id));
+};
+
+loadAll();
+</script>
+
+<style>
+:root {
+  --bg: #08090d;
+  --bg2: #0d0f16;
+  --bg3: #12151f;
+  --card: #0f1219;
+  --border: #1e2235;
+  --border2: #252a40;
+  --green: #00e5a0;
+  --green2: #00b87c;
+  --green-dim: rgba(0,229,160,0.08);
+  --green-glow: rgba(0,229,160,0.25);
+  --amber: #f5a623;
+  --red: #ff4757;
+  --blue: #4a9eff;
+  --text: #e8eaf0;
+  --text2: #8892b0;
+  --text3: #3d4560;
+  --font-display: 'Rajdhani', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'IBM Plex Sans', sans-serif;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:var(--font-body); min-height:100vh; overflow-x:hidden; }
+
+/* GRID TEXTURE */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(0,229,160,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,160,0.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events:none; z-index:0;
+}
+
+/* LOGIN */
+#loginScreen {
+  position:fixed; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  z-index:100; background:var(--bg);
+}
+.login-wrap { width:400px; position:relative; z-index:1; }
+.login-logo {
+  font-family:var(--font-display);
+  font-size:48px; font-weight:700;
+  letter-spacing:4px;
+  color:var(--green);
+  text-shadow: 0 0 40px var(--green-glow), 0 0 80px rgba(0,229,160,0.1);
+  margin-bottom:4px;
+}
+.login-sub { font-family:var(--font-mono); font-size:11px; color:var(--text3); letter-spacing:3px; text-transform:uppercase; margin-bottom:40px; }
+.login-card {
+  background:var(--card);
+  border:1px solid var(--border2);
+  border-radius:2px;
+  padding:36px;
+  position:relative;
+  overflow:hidden;
+}
+.login-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg, transparent, var(--green), transparent);
+}
+.field { margin-bottom:20px; }
+.field label { display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text3); margin-bottom:8px; }
+.field input, .field select {
+  width:100%; background:var(--bg2);
+  border:1px solid var(--border2); border-radius:2px;
+  color:var(--text); padding:11px 14px;
+  font-family:var(--font-mono); font-size:13px;
+  outline:none; transition:border-color .2s;
+}
+.field input:focus, .field select:focus { border-color:var(--green); }
+.btn-login {
+  width:100%; padding:13px;
+  background:var(--green); color:#000;
+  border:none; border-radius:2px;
+  font-family:var(--font-display); font-size:16px; font-weight:700;
+  letter-spacing:2px; cursor:pointer;
+  transition:all .2s;
+}
+.btn-login:hover { background:#00ffb3; box-shadow:0 0 20px var(--green-glow); }
+.login-hint { margin-top:16px; font-family:var(--font-mono); font-size:11px; color:var(--text3); text-align:center; }
+
+/* APP LAYOUT */
+#app { display:none; min-height:100vh; position:relative; z-index:1; }
+
+/* TOP BAR */
+.topbar {
+  position:sticky; top:0; z-index:50;
+  background:rgba(8,9,13,0.95);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(10px);
+  padding:0 32px;
+  padding-top:env(safe-area-inset-top);
+  display:flex; align-items:center; gap:20px; height:56px;
+}
+.topbar-logo { font-family:var(--font-display); font-size:22px; font-weight:700; letter-spacing:3px; color:var(--green); }
+.topbar-logo span { color:var(--text3); font-size:11px; font-family:var(--font-mono); letter-spacing:2px; margin-left:8px; }
+.topbar-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+.mode-badge {
+  font-family:var(--font-mono); font-size:10px; letter-spacing:2px;
+  padding:4px 10px; border-radius:2px; text-transform:uppercase;
+}
+.mode-admin { background:rgba(245,166,35,0.12); color:var(--amber); border:1px solid rgba(245,166,35,0.3); }
+.mode-user  { background:var(--green-dim); color:var(--green); border:1px solid rgba(0,229,160,0.2); }
+.btn-logout {
+  background:none; border:1px solid var(--border2); color:var(--text3);
+  padding:6px 12px; border-radius:2px; cursor:pointer;
+  font-family:var(--font-mono); font-size:11px; transition:all .15s;
+}
+.btn-logout:hover { border-color:var(--red); color:var(--red); }
+
+/* MAIN */
+.main { padding:32px; max-width:1200px; margin:0 auto; }
+
+/* PAGE HEADER */
+.page-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:32px; }
+.page-title { font-family:var(--font-display); font-size:32px; font-weight:700; letter-spacing:2px; line-height:1; }
+.page-title span { color:var(--green); }
+.page-sub { font-family:var(--font-mono); font-size:11px; color:var(--text3); letter-spacing:2px; margin-top:6px; }
+
+/* SEARCH BAR */
+.search-bar {
+  display:flex; gap:12px; align-items:center; margin-bottom:28px;
+  flex-wrap:wrap;
+}
+.search-input {
+  flex:1; min-width:200px;
+  background:var(--bg2); border:1px solid var(--border2); border-radius:2px;
+  color:var(--text); padding:10px 16px;
+  font-family:var(--font-mono); font-size:13px; outline:none;
+  transition:border-color .2s;
+}
+.search-input:focus { border-color:var(--green); }
+.filter-select {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:2px;
+  color:var(--text2); padding:10px 14px;
+  font-family:var(--font-mono); font-size:12px; outline:none; cursor:pointer;
+}
+
+/* PRODUCTO CARD */
+.productos-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(340px,1fr)); gap:20px; }
+.producto-card {
+  background:var(--card); border:1px solid var(--border); border-radius:2px;
+  overflow:hidden; transition:border-color .2s, transform .2s;
+  cursor:pointer; position:relative;
+}
+.producto-card:hover { border-color:var(--border2); transform:translateY(-2px); }
+.producto-card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, var(--green), transparent);
+  opacity:0; transition:opacity .2s;
+}
+.producto-card:hover::before { opacity:1; }
+.card-head { padding:18px 20px 14px; display:flex; align-items:center; gap:14px; }
+.card-img {
+  width:48px; height:48px; border-radius:2px;
+  background:var(--bg3); border:1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; flex-shrink:0; overflow:hidden;
+}
+.card-img img { width:100%; height:100%; object-fit:cover; }
+.card-name { font-family:var(--font-display); font-size:20px; font-weight:600; letter-spacing:1px; line-height:1.2; }
+.card-marca { font-family:var(--font-mono); font-size:10px; color:var(--green); letter-spacing:2px; text-transform:uppercase; margin-top:3px; }
+.card-body { padding:0 20px 18px; }
+.card-components-preview { display:flex; gap:6px; flex-wrap:wrap; }
+.comp-chip {
+  font-family:var(--font-mono); font-size:10px;
+  background:var(--bg3); border:1px solid var(--border);
+  color:var(--text2); padding:3px 8px; border-radius:2px;
+}
+.comp-count { color:var(--text3); font-size:11px; font-family:var(--font-mono); margin-top:8px; }
+.card-footer {
+  padding:12px 20px; border-top:1px solid var(--border);
+  display:flex; align-items:center; justify-content:space-between;
+}
+.card-footer-info { font-family:var(--font-mono); font-size:10px; color:var(--text3); }
+.btn-ver { font-family:var(--font-mono); font-size:11px; color:var(--green); letter-spacing:1px; text-transform:uppercase; }
+.btn-admin-actions { display:flex; gap:8px; }
+.btn-edit { background:none; border:1px solid var(--border2); color:var(--text2); padding:5px 10px; border-radius:2px; cursor:pointer; font-family:var(--font-mono); font-size:11px; transition:all .15s; }
+.btn-edit:hover { border-color:var(--blue); color:var(--blue); }
+.btn-del { background:none; border:1px solid rgba(255,71,87,0.3); color:var(--red); padding:5px 10px; border-radius:2px; cursor:pointer; font-family:var(--font-mono); font-size:11px; transition:all .15s; }
+.btn-del:hover { background:rgba(255,71,87,0.1); }
+
+/* EMPTY STATE */
+.empty { text-align:center; padding:80px 20px; color:var(--text3); }
+.empty-ico { font-size:48px; margin-bottom:16px; opacity:.4; }
+.empty-txt { font-family:var(--font-mono); font-size:13px; letter-spacing:1px; }
+
+/* MODAL OVERLAY */
+.overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.85); z-index:200;
+  align-items:center; justify-content:center;
+  backdrop-filter:blur(4px);
+  padding:20px;
+}
+.overlay.open { display:flex; }
+
+/* FORMULA DETAIL MODAL */
+.formula-modal {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:2px;
+  width:100%; max-width:680px; max-height:90vh; overflow-y:auto;
+  animation:slideUp .25s ease;
+  position:relative;
+}
+.formula-modal::before {
+  content:''; position:sticky; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, var(--green), var(--blue));
+  display:block;
+}
+@keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+.fm-header { padding:24px 28px 20px; display:flex; align-items:center; gap:16px; }
+.fm-img { width:60px; height:60px; border-radius:2px; background:var(--bg3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:28px; overflow:hidden; flex-shrink:0; }
+.fm-img img { width:100%; height:100%; object-fit:cover; }
+.fm-title { font-family:var(--font-display); font-size:28px; font-weight:700; letter-spacing:2px; }
+.fm-marca { font-family:var(--font-mono); font-size:11px; color:var(--green); letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+.fm-close { margin-left:auto; background:none; border:1px solid var(--border); color:var(--text3); width:32px; height:32px; border-radius:2px; cursor:pointer; font-size:16px; transition:all .15s; flex-shrink:0; }
+.fm-close:hover { border-color:var(--red); color:var(--red); }
+
+/* ADJUSTER */
+.fm-adjuster { padding:16px 28px; background:var(--bg3); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+.adj-label { font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text3); margin-bottom:10px; }
+.adj-controls { display:flex; align-items:center; gap:12px; }
+.adj-btn { width:36px; height:36px; background:var(--bg2); border:1px solid var(--border2); color:var(--text); border-radius:2px; cursor:pointer; font-size:18px; transition:all .15s; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.adj-btn:hover { border-color:var(--green); color:var(--green); }
+.adj-input {
+  width:100px; background:var(--bg2); border:1px solid var(--border2); border-radius:2px;
+  color:var(--green); text-align:center;
+  font-family:var(--font-display); font-size:24px; font-weight:700;
+  padding:6px 10px; outline:none; transition:border-color .2s;
+}
+.adj-input:focus { border-color:var(--green); }
+.adj-unit { font-family:var(--font-mono); font-size:13px; color:var(--text2); }
+.adj-info { font-family:var(--font-mono); font-size:11px; color:var(--text3); margin-left:auto; }
+
+/* COMPONENTS TABLE */
+.fm-components { padding:20px 28px; }
+.comp-table { width:100%; border-collapse:collapse; }
+.comp-table th {
+  font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--text3); padding:8px 12px; text-align:left;
+  border-bottom:1px solid var(--border);
+}
+.comp-table th:last-child { text-align:right; }
+.comp-table td { padding:12px 12px; border-bottom:1px solid rgba(30,34,53,0.6); vertical-align:middle; }
+.comp-table tr:last-child td { border-bottom:none; }
+.comp-name { font-family:var(--font-body); font-size:14px; font-weight:500; color:var(--text); }
+.comp-ppl-badge {
+  font-family:var(--font-mono); font-size:12px; color:var(--amber);
+  background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.2);
+  padding:3px 8px; border-radius:2px; display:inline-block;
+}
+.comp-total {
+  font-family:var(--font-display); font-size:18px; font-weight:700;
+  color:var(--green); text-align:right;
+  text-shadow:0 0 12px var(--green-glow);
+}
+.comp-unit { font-family:var(--font-mono); font-size:11px; color:var(--text3); }
+.comp-bar-wrap { width:100px; height:4px; background:var(--border); border-radius:2px; overflow:hidden; }
+.comp-bar { height:100%; background:var(--green); border-radius:2px; transition:width .4s ease; }
+.comp-table tr:hover td { background:rgba(255,255,255,0.015); }
+
+/* TOTALS ROW */
+.totals-row { padding:16px 28px; background:var(--bg3); border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.totals-label { font-family:var(--font-mono); font-size:11px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; }
+.totals-val { font-family:var(--font-display); font-size:28px; font-weight:700; color:var(--green); text-shadow:0 0 20px var(--green-glow); }
+.totals-unit { font-family:var(--font-mono); font-size:12px; color:var(--text3); margin-left:6px; }
+
+/* ADMIN MODAL */
+.admin-modal {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:2px;
+  width:100%; max-width:600px; max-height:92vh; overflow-y:auto;
+  animation:slideUp .25s ease; position:relative;
+}
+.admin-modal::before {
+  content:''; position:sticky; top:0; left:0; right:0; height:2px;
+  background:linear-gradient(90deg, var(--amber), var(--green)); display:block;
+}
+.am-header { padding:24px 28px 20px; border-bottom:1px solid var(--border); }
+.am-title { font-family:var(--font-display); font-size:26px; font-weight:700; letter-spacing:2px; color:var(--amber); }
+.am-sub { font-family:var(--font-mono); font-size:11px; color:var(--text3); margin-top:4px; }
+.am-body { padding:24px 28px; }
+.am-section { font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--green); margin:20px 0 12px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+.form-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.am-field { margin-bottom:16px; }
+.am-field label { display:block; font-family:var(--font-mono); font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--text3); margin-bottom:7px; }
+.am-field input, .am-field select {
+  width:100%; background:var(--bg3); border:1px solid var(--border2); border-radius:2px;
+  color:var(--text); padding:10px 14px;
+  font-family:var(--font-mono); font-size:13px; outline:none; transition:border-color .2s;
+}
+.am-field input:focus { border-color:var(--green); }
+.am-field input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+
+/* COMPONENT BUILDER */
+.comp-builder { background:var(--bg3); border:1px solid var(--border); border-radius:2px; padding:16px; margin-bottom:16px; }
+.comp-builder-row { display:grid; grid-template-columns:1fr 90px 110px auto; gap:8px; align-items:end; margin-bottom:10px; }
+.comp-builder-row:last-child { margin-bottom:0; }
+.btn-add-comp {
+  background:none; border:1px dashed var(--border2); color:var(--text3);
+  padding:9px; border-radius:2px; cursor:pointer; width:100%;
+  font-family:var(--font-mono); font-size:12px; letter-spacing:1px;
+  transition:all .15s; margin-top:4px;
+}
+.btn-add-comp:hover { border-color:var(--green); color:var(--green); }
+.btn-remove-comp { background:none; border:1px solid rgba(255,71,87,0.3); color:var(--red); width:34px; height:38px; border-radius:2px; cursor:pointer; font-size:14px; transition:all .15s; flex-shrink:0; }
+.btn-remove-comp:hover { background:rgba(255,71,87,0.1); }
+
+/* IMAGE PREVIEW */
+.img-preview { width:60px; height:60px; border-radius:2px; background:var(--bg3); border:1px solid var(--border2); display:flex; align-items:center; justify-content:center; font-size:24px; overflow:hidden; }
+.img-preview img { width:100%; height:100%; object-fit:cover; }
+
+.am-actions { padding:20px 28px; border-top:1px solid var(--border); display:flex; gap:12px; justify-content:flex-end; }
+.btn-primary { padding:10px 24px; background:var(--green); color:#000; border:none; border-radius:2px; font-family:var(--font-display); font-size:15px; font-weight:700; letter-spacing:1px; cursor:pointer; transition:all .2s; }
+.btn-primary:hover { background:#00ffb3; box-shadow:0 0 16px var(--green-glow); }
+.btn-secondary { padding:10px 20px; background:none; color:var(--text2); border:1px solid var(--border2); border-radius:2px; font-family:var(--font-mono); font-size:12px; cursor:pointer; transition:all .15s; }
+.btn-secondary:hover { border-color:var(--text2); color:var(--text); }
+.btn-new {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 20px; background:var(--green-dim);
+  border:1px solid rgba(0,229,160,0.3); border-radius:2px;
+  color:var(--green); font-family:var(--font-display);
+  font-size:15px; font-weight:600; letter-spacing:1px;
+  cursor:pointer; transition:all .2s;
+}
+.btn-new:hover { background:rgba(0,229,160,0.15); box-shadow:0 0 12px var(--green-glow); }
+
+/* CONFIRM MODAL */
+.confirm-modal {
+  background:var(--bg2); border:1px solid var(--border2); border-radius:2px;
+  width:340px; padding:28px 32px; animation:slideUp .2s ease;
+}
+.confirm-title { font-family:var(--font-display); font-size:20px; font-weight:700; margin-bottom:8px; }
+.confirm-msg { font-family:var(--font-mono); font-size:12px; color:var(--text2); margin-bottom:24px; line-height:1.6; }
+.confirm-actions { display:flex; gap:10px; justify-content:flex-end; }
+
+/* LOADER */
+#loader { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:500; align-items:center; justify-content:center; }
+.spinner { width:36px; height:36px; border:2px solid var(--border); border-top-color:var(--green); border-radius:50%; animation:spin .7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* TOAST */
+#toast { position:fixed; bottom:24px; right:24px; z-index:600; display:flex; flex-direction:column; gap:8px; }
+.toast-item { background:var(--bg3); border:1px solid var(--border2); border-radius:2px; padding:12px 18px; font-family:var(--font-mono); font-size:12px; min-width:260px; animation:toastIn .3s ease; box-shadow:0 8px 32px rgba(0,0,0,0.5); display:flex; align-items:center; gap:10px; }
+.toast-item.ok { border-left:3px solid var(--green); color:var(--green); }
+.toast-item.err { border-left:3px solid var(--red); color:var(--red); }
+@keyframes toastIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+
+/* PASSWORD MODAL */
+.pass-modal { background:var(--bg2); border:1px solid var(--border2); border-radius:2px; width:340px; padding:32px; animation:slideUp .2s ease; }
+.pass-title { font-family:var(--font-display); font-size:22px; font-weight:700; letter-spacing:2px; color:var(--amber); margin-bottom:4px; }
+.pass-sub { font-family:var(--font-mono); font-size:11px; color:var(--text3); margin-bottom:24px; }
+.pass-error { color:var(--red); font-family:var(--font-mono); font-size:11px; margin-top:-8px; margin-bottom:12px; display:none; }
+
+/* AUTOCOMPLETE */
+.autocomplete-wrap { position:relative; }
+.autocomplete-list {
+  position:absolute; top:100%; left:0; right:0; z-index:100;
+  background:var(--bg2); border:1px solid var(--green); border-top:none;
+  border-radius:0 0 2px 2px; max-height:160px; overflow-y:auto;
+}
+.autocomplete-item {
+  padding:9px 14px; font-family:var(--font-mono); font-size:12px;
+  color:var(--text2); cursor:pointer; transition:background .1s;
+}
+.autocomplete-item:hover { background:var(--green-dim); color:var(--green); }
+
+/* PPL TOTAL BAR */
+.ppl-bar-wrap { margin:12px 0 4px; }
+.ppl-bar-track { height:6px; background:var(--border); border-radius:2px; overflow:hidden; position:relative; }
+.ppl-bar-fill { height:100%; border-radius:2px; transition:width .3s ease; }
+.ppl-bar-ok { background:linear-gradient(90deg, var(--green2), var(--green)); }
+.ppl-bar-over { background:var(--red); }
+.ppl-bar-label { display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:10px; color:var(--text3); margin-top:4px; }
+.ppl-status-ok { color:var(--green); }
+.ppl-status-over { color:var(--red); }
+.ppl-status-under { color:var(--amber); }
+
+/* COST DISPLAY */
+.cost-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 20px; background:rgba(0,229,160,0.05);
+  border:1px solid rgba(0,229,160,0.15); border-radius:2px; margin-top:12px;
+}
+.cost-label { font-family:var(--font-mono); font-size:11px; color:var(--text3); letter-spacing:1px; text-transform:uppercase; }
+.cost-val { font-family:'Rajdhani',sans-serif; font-size:24px; font-weight:700; color:var(--green); }
+.cost-unit { font-family:var(--font-mono); font-size:11px; color:var(--text3); margin-left:4px; }
+
+/* NOTES */
+.notes-textarea {
+  width:100%; background:var(--bg3); border:1px solid var(--border2); border-radius:2px;
+  color:var(--text); padding:12px 14px; font-family:var(--font-body); font-size:13px;
+  outline:none; resize:vertical; min-height:100px; line-height:1.6;
+  transition:border-color .2s;
+}
+.notes-textarea:focus { border-color:var(--green); }
+
+/* FORMULA NOTES DISPLAY */
+.fm-notes {
+  padding:16px 28px; border-top:1px solid var(--border);
+  background:rgba(74,158,255,0.03);
+}
+.fm-notes-title { font-family:var(--font-mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--text3); margin-bottom:8px; }
+.fm-notes-body { font-family:var(--font-body); font-size:13px; color:var(--text2); line-height:1.7; white-space:pre-wrap; }
+
+/* SCROLLBAR */
+
+/* PRODUCCIÓN */
+.prod-card { background:var(--bg3); border:1px solid var(--border); border-radius:2px; padding:16px 20px; margin-bottom:10px; display:flex; flex-direction:column; gap:8px; }
+.prod-card:hover { border-color:var(--border2); }
+.prod-card-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.prod-codigo { font-family:var(--font-display); font-size:18px; font-weight:700; color:var(--amber); letter-spacing:2px; }
+.prod-meta { display:flex; gap:14px; flex-wrap:wrap; }
+.prod-meta-item { font-family:var(--font-mono); font-size:11px; color:var(--text3); }
+.prod-meta-item span { color:var(--text2); }
+.prod-producto-name { font-family:var(--font-body); font-size:14px; font-weight:600; color:var(--text); }
+.prod-litros-badge { background:rgba(0,229,160,0.1); border:1px solid rgba(0,229,160,0.25); color:var(--green); font-family:var(--font-display); font-size:16px; font-weight:700; padding:4px 12px; border-radius:2px; letter-spacing:1px; }
+.prod-obs { font-family:var(--font-body); font-size:12px; color:var(--text3); font-style:italic; margin-top:4px; }
+
+@media(max-width:768px) {
+  .prod-form-grid { grid-template-columns:1fr !important; }
+}
+
+
+
+  to   { transform: rotate(360deg); }
+}
+/* ATOM LOGO - pure CSS */
+.atom-wrap { display:inline-flex; align-items:center; gap:10px; }
+.atom { position:relative; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; }
+.atom.lg { width:38px; height:38px; }
+.atom.sm { width:24px; height:24px; }
+.atom-nucleus { position:absolute; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); z-index:2; }
+.atom.lg .atom-nucleus { width:7px; height:7px; }
+.atom.sm .atom-nucleus { width:5px; height:5px; }
+.atom-orbit { position:absolute; border-radius:50%; border:1px solid rgba(0,229,160,0.5); }
+.atom.lg .atom-orbit { width:36px; height:13px; }
+.atom.sm .atom-orbit { width:22px; height:8px; }
+.atom-orbit:nth-child(2) { transform:rotate(0deg);   animation:atomOrbit 2.5s linear infinite; }
+.atom-orbit:nth-child(3) { transform:rotate(60deg);  animation:atomOrbit 3.2s linear infinite reverse; }
+.atom-orbit:nth-child(4) { transform:rotate(120deg); animation:atomOrbit 2s linear infinite; }
+.atom-electron { position:absolute; border-radius:50%; background:var(--green); top:50%; transform:translateY(-50%); }
+.atom.lg .atom-electron { width:5px; height:5px; left:-2px; }
+.atom.sm .atom-electron { width:4px; height:4px; left:-2px; }
+.atom-orbit:nth-child(3) .atom-electron { background:var(--blue); }
+@keyframes atomOrbit { from{transform:rotate(var(--r,0deg))} to{transform:rotate(calc(var(--r,0deg) + 360deg))} }
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+
+/* HISTORIAL */
+.hist-entry { background:var(--bg3); border:1px solid var(--border); border-radius:2px; padding:16px; margin-bottom:12px; }
+.hist-entry:last-child { margin-bottom:0; }
+.hist-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px; }
+.hist-id { font-family:var(--font-mono); font-size:10px; color:var(--text3); letter-spacing:1px; }
+.hist-meta { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.hist-fecha { font-family:var(--font-mono); font-size:11px; color:var(--blue); }
+.hist-resp { font-family:var(--font-mono); font-size:11px; color:var(--green); }
+.hist-nota { font-family:var(--font-body); font-size:12px; color:var(--text2); margin-bottom:10px; font-style:italic; background:rgba(74,158,255,0.06); border-left:2px solid var(--blue); padding:6px 10px; border-radius:0 2px 2px 0; }
+.hist-diff { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(30,34,53,0.6); font-size:12px; flex-wrap:wrap; }
+.hist-diff:last-child { border-bottom:none; padding-bottom:0; }
+.hist-campo { font-family:var(--font-mono); font-size:11px; color:var(--text3); min-width:120px; }
+.hist-antes { font-family:var(--font-mono); font-size:12px; color:var(--red); background:rgba(255,71,87,0.08); padding:2px 8px; border-radius:2px; text-decoration:line-through; }
+.hist-despues { font-family:var(--font-mono); font-size:12px; color:var(--green); background:var(--green-dim); padding:2px 8px; border-radius:2px; }
+.hist-arrow { color:var(--text3); font-size:14px; }
+
+/* DRAG HANDLE for mobile sheets */
+.modal-drag-handle {
+  width:36px; height:4px; background:var(--border2);
+  border-radius:2px; margin:10px auto 0;
+}
+@media(max-width:768px) {
+  .modal-drag-handle { display:block !important; }
+}
+/* ════════════════════════════════════
+   MOBILE RESPONSIVE — max 768px
+   ════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* TOPBAR */
+  .topbar { padding:0 16px; height:50px; }
+  .topbar-logo { font-size:18px; letter-spacing:2px; }
+  .topbar-logo span { display:none; }
+  .mode-badge { display:none; }
+  .btn-logout { padding:5px 10px; font-size:10px; }
+
+  /* MAIN */
+  .main { padding:16px; }
+
+  /* PAGE HEADER */
+  .page-header { flex-direction:column; gap:12px; margin-bottom:20px; }
+  .page-title { font-size:24px; }
+  .btn-new { width:100%; justify-content:center; padding:10px 16px; }
+
+  /* SEARCH BAR */
+  .search-bar { gap:8px; }
+  .search-input { min-width:0; font-size:12px; }
+  .filter-select { width:100%; font-size:12px; }
+
+  /* PRODUCT GRID */
+  .productos-grid { grid-template-columns:1fr; gap:12px; }
+
+  /* CARD */
+  .card-name { font-size:17px; }
+  .card-footer { flex-direction:column; align-items:flex-start; gap:10px; }
+  .btn-admin-actions { width:100%; justify-content:flex-end; }
+
+  /* LOGIN */
+  .login-wrap { width:100%; padding:0 20px; }
+  .login-logo { font-size:36px; }
+
+  /* OVERLAYS */
+  .overlay { padding:0; align-items:flex-end; }
+
+  /* FORMULA MODAL */
+  .formula-modal {
+    max-width:100%; width:100%;
+    max-height:92vh;
+    border-radius:12px 12px 0 0;
+    animation:slideUpMobile .25s ease;
+  }
+  @keyframes slideUpMobile { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .fm-header { padding:16px 16px 14px; gap:12px; }
+  .fm-title { font-size:20px; }
+  .fm-img { width:44px; height:44px; font-size:20px; }
+  .fm-adjuster { padding:12px 16px; }
+  .adj-controls { gap:8px; flex-wrap:wrap; }
+  .adj-input { width:80px; font-size:20px; }
+  .adj-info { width:100%; text-align:right; font-size:10px; }
+  .fm-components { padding:12px 16px; }
+  .comp-table th, .comp-table td { padding:8px 8px; font-size:11px; }
+  .comp-table th:nth-child(3), .comp-table td:nth-child(3) { display:none; } /* hide proportion col */
+  .comp-name { font-size:13px; }
+  .comp-ppl-badge { font-size:11px; padding:2px 6px; }
+  .comp-total { font-size:14px; }
+  .totals-row { padding:12px 16px; flex-direction:column; align-items:flex-start; gap:6px; }
+  .totals-val { font-size:24px; }
+  .fm-notes { padding:12px 16px; }
+  .fm-notes-body { font-size:12px; }
+
+  /* ADMIN MODAL */
+  .admin-modal {
+    max-width:100%; width:100%;
+    max-height:95vh;
+    border-radius:12px 12px 0 0;
+    animation:slideUpMobile .25s ease;
+  }
+  .am-header { padding:16px 16px 14px; }
+  .am-title { font-size:20px; }
+  .am-body { padding:16px; }
+  .am-actions { padding:14px 16px; }
+  .form-row { grid-template-columns:1fr; gap:12px; }
+  .comp-builder-row { grid-template-columns:1fr auto auto !important; }
+  .comp-builder-row > div:nth-child(2) { min-width:70px; }
+  .comp-builder-row > div:nth-child(3) { min-width:80px; }
+
+  /* CONFIRM / COPY MODALS */
+  .confirm-modal { width:calc(100% - 32px); padding:24px 20px; border-radius:10px; }
+
+  /* COST ROW */
+  .cost-row { flex-direction:column; gap:8px; align-items:flex-start; }
+  .cost-val { font-size:20px; }
+}
+
+/* Extra small */
+@media (max-width: 380px) {
+  .comp-table th:nth-child(2), .comp-table td:nth-child(2) { display:none; } /* hide PPL on tiny screens */
+  .adj-controls { gap:6px; }
+  .adj-input { width:70px; font-size:18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-wrap">
+    <div class="login-logo atom-wrap"><div class="atom lg"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>CHEMLAB</div>
+    <div class="login-sub">Sistema de Fórmulas Químicas</div>
+    <div class="login-card">
+      <div class="field">
+        <label>Modo de acceso</label>
+        <select id="loginMode">
+          <option value="user">👤 Usuario — Ver fórmulas</option>
+          <option value="prod">🏭 Registrar Producción</option>
+          <option value="admin">🔑 Administrador</option>
+        </select>
+      </div>
+      <div id="passField" class="field" style="display:none">
+        <label>Contraseña admin</label>
+        <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <div id="loginError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Contraseña incorrecta</div>
+      </div>
+      <button class="btn-login" onclick="doLogin()">ACCEDER</button>
+      <div class="login-hint">Admin: chem2024</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo atom-wrap"><div class="atom sm"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>CHEMLAB<span id="topMode"></span></div>
+    <div class="topbar-right">
+      <span class="mode-badge" id="modeBadge"></span>
+      <button id="btnMarcas" class="btn-logout" onclick="openMarcasPanel()" style="display:none;border-color:rgba(0,229,160,0.3);color:var(--green)">MARCAS</button>
+      <button class="btn-logout" onclick="doLogout()">SALIR</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="page-header">
+      <div>
+        <div class="page-title">FÓRMULAS <span style="color:var(--green)">QUÍMICAS</span></div>
+        <div class="page-sub" id="pageSubtitle"></div>
+      </div>
+      <button class="btn-new" id="btnNewProd" style="display:none" onclick="openAdminModal()">
+        <span style="font-size:18px">⊕</span> NUEVO PRODUCTO
+      </button>
+    </div>
+    <div class="search-bar">
+      <input class="search-input" id="searchInput" placeholder="🔍  Buscar por nombre o marca..." oninput="renderApp()">
+      <select class="filter-select" id="filterMarca" onchange="renderApp()">
+        <option value="">Todas las marcas</option>
+      </select>
+    </div>
+    <div class="productos-grid" id="productosGrid"></div>
+  </div>
+</div>
+
+<!-- GESTIÓN ECOMMERCE -->
+<div id="produccionPanel" style="display:none;min-height:100vh;background:var(--bg);position:relative;z-index:1">
+  <div class="topbar">
+    <div class="topbar-logo atom-wrap"><div class="atom sm"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>CHEMLAB<span style="color:var(--amber);font-size:11px;font-family:var(--font-mono);letter-spacing:2px;margin-left:8px"> · PRODUCCIÓN</span></div>
+    <div class="topbar-right">
+      <button class="btn-logout" onclick="doLogout()">SALIR</button>
+    </div>
+  </div>
+
+  <div class="main" style="max-width:900px">
+    <div class="page-header">
+      <div>
+        <div class="page-title">REGISTRO DE <span style="color:var(--amber)">PRODUCCIÓN</span></div>
+        <div class="page-sub">Registra lotes de producción y consulta el historial</div>
+      </div>
+      <div style="display:flex;gap:10px" id="prodTabBar">
+        <button class="btn-new" id="prodBtn-nuevo" onclick="switchProdTab('nuevo')" style="border-color:rgba(245,166,35,0.3);color:var(--amber);background:rgba(245,166,35,0.15)">⊕ Nuevo Registro</button>
+        <button class="btn-new" id="prodBtn-historial" onclick="switchProdTab('historial')">☰ Historial</button>
+      </div>
+    </div>
+
+    <!-- TAB NUEVO -->
+    <div id="prodTab-nuevo" class="tab-panel active">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:2px;padding:28px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--amber),var(--green))"></div>
+
+        <div style="font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--amber);letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+          ⚗ Datos del lote
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px" class="prod-form-grid">
+          <div class="am-field">
+            <label>Código de producción</label>
+            <input type="text" id="prod-codigo" readonly
+              style="background:var(--bg3);border:1px solid rgba(245,166,35,0.3);color:var(--amber);font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:2px;cursor:default">
+          </div>
+          <div class="am-field">
+            <label>Responsable <span style="color:var(--red)">*</span></label>
+            <div style="display:flex;gap:8px">
+              <select id="prod-responsable" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;cursor:pointer">
+                <option value="">— Seleccionar —</option>
+              </select>
+              <button onclick="openAddResponsable()" title="Agregar responsable" style="background:var(--green-dim);border:1px solid rgba(0,229,160,0.3);color:var(--green);border-radius:2px;padding:0 12px;cursor:pointer;font-size:18px;flex-shrink:0">+</button>
+            </div>
+          </div>
+          <div class="am-field">
+            <label>Fecha</label>
+            <input type="date" id="prod-fecha" readonly style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);cursor:default">
+          </div>
+          <div class="am-field">
+            <label>Hora (Chile)</label>
+            <input type="text" id="prod-hora" readonly style="background:var(--bg3);border:1px solid var(--border2);color:var(--text2);font-family:var(--font-mono);cursor:default">
+          </div>
+          <div class="am-field">
+            <label>Producto <span style="color:var(--red)">*</span></label>
+            <select id="prod-producto" style="background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;cursor:pointer" onchange="updateProdInfo()">
+              <option value="">— Seleccionar fórmula —</option>
+            </select>
+          </div>
+          <div class="am-field">
+            <label>Litros producidos <span style="color:var(--red)">*</span></label>
+            <input type="number" id="prod-litros" placeholder="Ej: 50" min="0.1" step="0.1"
+              style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none"
+              oninput="updateProdInfo()">
+          </div>
+        </div>
+
+        <!-- Product info summary -->
+        <div id="prodInfoBox" style="display:none;background:var(--bg3);border:1px solid rgba(0,229,160,0.15);border-radius:2px;padding:14px 16px;margin-bottom:16px">
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Ingredientes para esta producción</div>
+          <div id="prodIngredientes" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+
+        <div class="am-field">
+          <label>Observaciones (opcional)</label>
+          <textarea id="prod-obs" placeholder="Notas del lote, incidencias, condiciones especiales..."
+            style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-body);font-size:13px;outline:none;resize:vertical;min-height:70px;line-height:1.5"></textarea>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:20px">
+          <button onclick="registrarProduccion()" style="background:var(--amber);color:#000;border:none;border-radius:2px;padding:12px 28px;font-family:var(--font-display);font-size:16px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s" onmouseover="this.style.background='#ffc144'" onmouseout="this.style.background='var(--amber)'">
+            ✓ REGISTRAR LOTE
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB HISTORIAL -->
+    <div id="prodTab-historial" class="tab-panel">
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+        <input type="text" id="prod-search" class="search-input" placeholder="🔍 Buscar por código, producto o responsable..." oninput="renderProdHistorial()" style="flex:1;min-width:200px">
+        <select id="prod-filter-prod" class="filter-select" onchange="renderProdHistorial()">
+          <option value="">Todos los productos</option>
+        </select>
+      </div>
+      <div id="prodHistorialList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RESPONSABLE QUICK ADD -->
+<div class="overlay" id="responsableOverlay">
+  <div class="confirm-modal" style="width:380px">
+    <div class="confirm-title" style="color:var(--amber)">+ Nuevo Responsable</div>
+    <div class="confirm-msg">Ingresa el nombre del responsable de producción.</div>
+    <input type="text" id="responsableInput" placeholder="Ej: Juan García"
+      style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;margin-bottom:20px"
+      onfocus="this.style.borderColor='var(--amber)'" onblur="this.style.borderColor='var(--border2)'"
+      onkeydown="if(event.key==='Enter')confirmAddResponsable()">
+    <div class="confirm-actions">
+      <button class="btn-secondary" onclick="closeAddResponsable()">Cancelar</button>
+      <button class="btn-secondary" style="border-color:rgba(245,166,35,0.4);color:var(--amber)" onclick="confirmAddResponsable()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ADMIN RESPONSABLE QUICK ADD -->
+<div class="overlay" id="adminRespOverlay">
+  <div class="confirm-modal" style="width:380px">
+    <div class="confirm-title" style="color:var(--green)">+ Agregar Responsable</div>
+    <div class="confirm-msg">Ingresa el nombre del responsable para el historial.</div>
+    <input type="text" id="adminRespInput" placeholder="Ej: Carlos López"
+      style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;margin-bottom:20px"
+      onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border2)'"
+      onkeydown="if(event.key==='Enter')confirmAddAdminResponsable()">
+    <div class="confirm-actions">
+      <button class="btn-secondary" onclick="closeAddAdminResponsable()">Cancelar</button>
+      <button class="btn-secondary" style="border-color:rgba(0,229,160,0.3);color:var(--green)" onclick="confirmAddAdminResponsable()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+// ════════ STATE ════════
+
+function getAdminResponsables() {
+  return JSON.parse(localStorage.getItem('chem_admin_responsables') || '[]');
+}
+function saveAdminResponsables(list) {
+  localStorage.setItem('chem_admin_responsables', JSON.stringify(list));
+}
+function populateAdminResponsableSelect() {
+  const sel = document.getElementById('amResponsable');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar —</option>';
+  getAdminResponsables().forEach(r => {
+    const o = document.createElement('option');
+    o.value = r; o.textContent = r; sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+function openAddAdminResponsable() {
+  document.getElementById('adminRespInput').value = '';
+  document.getElementById('adminRespOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('adminRespInput').focus(), 100);
+}
+function closeAddAdminResponsable() {
+  document.getElementById('adminRespOverlay').classList.remove('open');
+}
+function confirmAddAdminResponsable() {
+  const nombre = document.getElementById('adminRespInput').value.trim();
+  if (!nombre) return;
+  const list = getAdminResponsables();
+  if (!list.includes(nombre)) { list.push(nombre); saveAdminResponsables(list); }
+  populateAdminResponsableSelect();
+  document.getElementById('amResponsable').value = nombre;
+  closeAddAdminResponsable();
+}
+
+// ════════ HISTORIAL localStorage (sin Firebase) ════════
+function guardarCambioLocal(cambio) {
+  const clean = JSON.parse(JSON.stringify(cambio, (k,v) => v === undefined ? null : v));
+  clean._id = 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+  const all = JSON.parse(localStorage.getItem('chem_historial') || '[]');
+  all.push(clean);
+  localStorage.setItem('chem_historial', JSON.stringify(all));
+  return clean._id;
+}
+
+function getHistorialLocal(productoId) {
+  const all = JSON.parse(localStorage.getItem('chem_historial') || '[]');
+  return all
+    .filter(c => c.productoId === productoId)
+    .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+}
+
+const state = {
+  mode: null,
+  productos: [],
+  marcas: [],
+  responsable: '',
+  editingId: null,
+  pendingConfirm: null,
+  currentFormula: null,
+};
+
+// ── PRODUCCIÓN helpers ──
+function getProduccionKey() { return 'chem_produccion'; }
+function getResponsablesKey() { return 'chem_responsables'; }
+
+function getProduccionList() {
+  return JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
+}
+function saveProduccionList(list) {
+  localStorage.setItem(getProduccionKey(), JSON.stringify(list));
+}
+function getResponsables() {
+  return JSON.parse(localStorage.getItem(getResponsablesKey()) || '[]');
+}
+function saveResponsables(list) {
+  localStorage.setItem(getResponsablesKey(), JSON.stringify(list));
+}
+function getNextCodigo() {
+  const list = getProduccionList();
+  if (!list.length) return 'L001000';
+  const nums = list.map(p => parseInt((p.codigo||'L000000').slice(1))||0);
+  const next = Math.max(...nums) + 1;
+  return 'L' + String(next).padStart(6,'0');
+}
+const ADMIN_PASS = 'chem2024';
+
+// ════════ LOGIN ════════
+document.getElementById('loginMode').addEventListener('change', function() {
+  document.getElementById('passField').style.display = this.value === 'admin' ? 'block' : 'none';
+  document.getElementById('loginError').style.display = 'none';
+});
+
+function doLogin() {
+  const mode = document.getElementById('loginMode').value;
+  if (mode === 'admin') {
+    const pass = document.getElementById('loginPass').value;
+    if (pass !== ADMIN_PASS) {
+      document.getElementById('loginError').style.display = 'block';
+      return;
+    }
+    state.responsable = 'Administrador';
+  }
+  if (mode === 'prod') {
+    state.responsable = '';
+    document.getElementById('loginScreen').style.display = 'none';
+    openProduccionPanel();
+    return;
+  }
+  state.mode = mode;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const modeLabels = { admin:' · ADMIN', user:' · USUARIO' };
+  const modeBadgeText = { admin:'ADMIN', user:'USUARIO' };
+  document.getElementById('topMode').textContent = modeLabels[mode]||'';
+  document.getElementById('modeBadge').textContent = modeBadgeText[mode]||mode.toUpperCase();
+  document.getElementById('modeBadge').className = 'mode-badge ' + (mode === 'admin' ? 'mode-admin' : 'mode-user');
+  document.getElementById('pageSubtitle').textContent = mode === 'admin' ? 'Gestión completa de fórmulas' : 'Consulta y ajuste de producción';
+  document.getElementById('btnNewProd').style.display = mode === 'admin' ? 'flex' : 'none';
+  document.getElementById('btnMarcas').style.display = mode === 'admin' ? 'inline-flex' : 'none';
+  renderApp();
+}
+
+function doLogout() {
+  state.mode = null;
+  state.responsable = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('produccionPanel').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginMode').value = 'user';
+  document.getElementById('passField').style.display = 'none';
+}
+
+// ════════ RENDER ════════
+function renderApp() {
+  if (!state.mode) return;
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const marca = document.getElementById('filterMarca').value;
+
+  // Update marca filter
+  const marcas = [...new Set(state.productos.map(p => p.marca).filter(Boolean))].sort();
+  const sel = document.getElementById('filterMarca');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Todas las marcas</option>';
+  marcas.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; if(m===cur) o.selected=true; sel.appendChild(o); });
+
+  let prods = state.productos.filter(p => {
+    const matchQ = !q || p.nombre.toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q);
+    const matchM = !marca || p.marca === marca;
+    return matchQ && matchM;
+  });
+
+  const grid = document.getElementById('productosGrid');
+  if (!prods.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🧪</div><div class="empty-txt">No se encontraron fórmulas</div></div>';
+    return;
+  }
+
+  grid.innerHTML = prods.map(p => {
+    const comps = p.componentes || [];
+    const preview = comps.slice(0,3).map(c => `<span class="comp-chip">${c.nombre}</span>`).join('');
+    const extra = comps.length > 3 ? `<div class="comp-count">+${comps.length-3} más</div>` : '';
+    const imgHtml = p.imagen
+      ? `<img src="${p.imagen}" alt="" onerror="this.parentNode.innerHTML='🧪'">`
+      : '🧪';
+    const adminBtns = state.mode === 'admin'
+      ? `<div class="btn-admin-actions">
+           <button class="btn-edit" onclick="event.stopPropagation();editProducto('${p._id}')">Editar</button>
+           <button class="btn-edit" style="border-color:rgba(0,229,160,0.3);color:var(--green)" onclick="event.stopPropagation();copiarProducto('${p._id}')">Copiar</button>
+           <button class="btn-del" onclick="event.stopPropagation();confirmarEliminar('${p._id}')">Eliminar</button>
+         </div>`
+      : `<span class="btn-ver">Ver fórmula →</span>`;
+    return `<div class="producto-card" onclick="openFormulaModal('${p._id}')">
+      <div class="card-head">
+        <div class="card-img">${imgHtml}</div>
+        <div>
+          <div class="card-name">${p.nombre}</div>
+          <div class="card-marca">${p.marca||'—'}</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-components-preview">${preview}</div>${extra}
+      </div>
+      <div class="card-footer">
+        <div class="card-footer-info">${comps.length} componente${comps.length!==1?'s':''}</div>
+        ${adminBtns}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════ FORMULA MODAL ════════
+function openFormulaModal(id) {
+  const prod = state.productos.find(p => p._id === id);
+  if (!prod) return;
+  state.currentFormula = prod;
+
+  const imgHtml = prod.imagen ? `<img src="${prod.imagen}" alt="" onerror="this.parentNode.innerHTML='🧪'">` : '🧪';
+  document.getElementById('fmImg').innerHTML = imgHtml;
+  document.getElementById('fmTitle').textContent = prod.nombre;
+  document.getElementById('fmMarca').textContent = prod.marca || '';
+  document.getElementById('litrosInput').value = 1;
+  updateFormula();
+  document.getElementById('formulaOverlay').classList.add('open');
+}
+
+function closeFormulaModal() {
+  document.getElementById('formulaOverlay').classList.remove('open');
+  state.currentFormula = null;
+}
+
+function adjustLitros(delta) {
+  const inp = document.getElementById('litrosInput');
+  let val = parseFloat(inp.value) || 1;
+  val = Math.max(0.1, Math.round((val + delta) * 10) / 10);
+  inp.value = val;
+  updateFormula();
+}
+
+function updateFormula() {
+  const prod = state.currentFormula;
+  if (!prod) return;
+  const litros = Math.max(0.001, parseFloat(document.getElementById('litrosInput').value) || 1);
+  const comps = prod.componentes || [];
+
+  const totalPPL = comps.reduce((s,c) => s + (parseFloat(c.ppl)||0), 0);
+  const mlTotal = litros * 1000;
+
+  document.getElementById('adjInfo').textContent = totalPPL.toFixed(3) + ' PPL total';
+  document.getElementById('totalVal').textContent = mlTotal % 1 === 0 ? mlTotal.toLocaleString('es-CL') : mlTotal.toFixed(1);
+  const gTotal = mlTotal; // 1 ml ≈ 1 g
+  const gTotalEl = document.getElementById('totalGrams');
+  if (gTotalEl) gTotalEl.textContent = gTotal.toFixed(1) + ' g';
+
+  // Calculate cost scaled by litros
+  let costPerLitro = 0;
+  comps.forEach(c => {
+    const ppl = parseFloat(c.ppl)||0;
+    const ppk = parseFloat(c.ppk)||0;
+    const proportion = totalPPL > 0 ? ppl / totalPPL : 0;
+    costPerLitro += proportion * ppk;
+  });
+  const totalCost = costPerLitro * litros;
+  const isAdmin = state.mode === 'admin';
+  const costEl = document.getElementById('fmCost');
+  const costLabelEl = document.getElementById('fmCostLabel');
+  if (costEl) { costEl.style.display = isAdmin ? '' : 'none'; if (isAdmin) costEl.textContent = totalCost > 0 ? '$' + totalCost.toFixed(2) : '—'; }
+  if (costLabelEl) costLabelEl.style.display = isAdmin ? '' : 'none';
+
+  // Notes
+  const notesSection = document.getElementById('fmNotesSection');
+  const notesBody = document.getElementById('fmNotesBody');
+  if (notesSection && notesBody) {
+    if (prod.notas && prod.notas.trim()) {
+      notesBody.textContent = prod.notas;
+      notesSection.style.display = 'block';
+    } else {
+      notesSection.style.display = 'none';
+    }
+  }
+
+  const maxPPL = totalPPL > 0 ? Math.max(...comps.map(c => parseFloat(c.ppl)||0)) : 1;
+
+  const tbody = document.getElementById('compTableBody');
+  tbody.innerHTML = comps.map(c => {
+    const ppl = parseFloat(c.ppl) || 0;
+    const ppk = parseFloat(c.ppk) || 0;
+    const ml = totalPPL > 0 ? (ppl / totalPPL) * mlTotal : ppl * mlTotal;
+    const pct = totalPPL > 0 ? Math.round((ppl / totalPPL) * 100) : 0;
+    const barPct = maxPPL > 0 ? Math.round((ppl / maxPPL) * 100) : 0;
+    // ml / L display
+    const mlStr = ml >= 1000 ? (ml/1000).toFixed(3) + ' L' : ml.toFixed(1) + ' ml';
+    // Grams: for liquids ml ≈ g (density ~1), show both ml and g side by side
+    const g = ml; // 1 ml water = 1 g, standard approximation
+    const gStr = g.toFixed(1) + ' g';
+    const compCost = totalPPL > 0 ? ((ppl/totalPPL) * ppk * litros) : 0;
+    const costStr = (ppk > 0 && state.mode === 'admin') ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--amber)">$' + compCost.toFixed(2) + '</span>' : '';
+    return `<tr>
+      <td><div class="comp-name">${c.nombre}</div>${costStr}</td>
+      <td><span class="comp-ppl-badge">${ppl} PPL</span></td>
+      <td>
+        <div class="comp-bar-wrap"><div class="comp-bar" style="width:${barPct}%"></div></div>
+        <div class="comp-unit">${pct}%</div>
+      </td>
+      <td class="comp-total" style="text-align:right">${mlStr}</td>
+      <td style="text-align:right;font-family:var(--font-display);font-size:16px;font-weight:600;color:var(--blue)">${gStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ════════ ADMIN MODAL ════════
+let compRows = [];
+
+// Get all unique component names from all products for autocomplete
+function getAllCompNames() {
+  const names = new Set();
+  state.productos.forEach(p => (p.componentes||[]).forEach(c => { if(c.nombre) names.add(c.nombre); }));
+  return [...names].sort();
+}
+
+function openAdminModal(prod = null) {
+  state.editingId = prod ? prod._id : null;
+  document.getElementById('amTitle').textContent = prod ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO';
+  // Show nota cambio only when editing
+  const notaWrap = document.getElementById('amNotaCambioWrap');
+  const btnHist = document.getElementById('btnVerHistorial');
+  if (notaWrap) notaWrap.style.display = prod ? 'block' : 'none';
+  if (btnHist) btnHist.style.display = prod ? 'inline-flex' : 'none';
+  const notaInp = document.getElementById('amNotaCambio');
+  if (notaInp) { notaInp.value = ''; document.getElementById('amNotaCount').textContent = '0/100'; }
+  populateAdminResponsableSelect();
+  document.getElementById('amNombre').value = prod ? prod.nombre : '';
+  populateMarcaSelect();
+  document.getElementById('amMarca').value = prod ? (prod.marca||'') : '';
+  document.getElementById('amImagen').value = prod ? (prod.imagen||'') : '';
+  document.getElementById('amNotas').value = prod ? (prod.notas||'') : '';
+  setTimeout(previewImg, 50); // trigger after value is set
+  compRows = prod ? prod.componentes.map(c => ({...c})) : [];
+  if (!compRows.length) compRows.push({nombre:'', ppl:'', ppk:''});
+  renderCompRows();
+  updatePPLBar();
+  updateCostSummary();
+  document.getElementById('adminOverlay').classList.add('open');
+}
+
+function closeAdminModal() {
+  document.getElementById('adminOverlay').classList.remove('open');
+  compRows = [];
+  state.editingId = null;
+  // Close any open autocomplete
+  document.querySelectorAll('.autocomplete-list').forEach(el => el.remove());
+}
+
+function addCompRow() {
+  syncCompRowsFromDOM();
+  compRows.push({nombre:'', ppl:'', ppk:''});
+  renderCompRows();
+  updatePPLBar();
+}
+
+function removeCompRow(i) {
+  if (compRows.length <= 1) return showToast('Debe haber al menos un componente', true);
+  syncCompRowsFromDOM();
+  compRows.splice(i, 1);
+  renderCompRows();
+  updatePPLBar();
+  updateCostSummary();
+}
+
+function updateCompField(i, field, value) {
+  compRows[i][field] = value;
+  updatePPLBar();
+  updateCostSummary();
+}
+
+function renderCompRows() {
+  const allNames = getAllCompNames();
+  document.getElementById('compBuilder').innerHTML = compRows.map((c, i) => `
+    <div class="comp-builder-row">
+      <div class="am-field autocomplete-wrap" style="margin:0">
+        <label>Componente</label>
+        <input type="text" id="comp-nombre-${i}" value="${escH(c.nombre)}" placeholder="Ej: Agua destilada"
+          autocomplete="off"
+          oninput="updateCompField(${i},'nombre',this.value);showAutocomplete(${i})"
+          onfocus="showAutocomplete(${i})"
+          onblur="setTimeout(()=>hideAutocomplete(${i}),150)">
+        <div class="autocomplete-list" id="ac-${i}" style="display:none"></div>
+      </div>
+      <div class="am-field" style="margin:0">
+        <label>PPL</label>
+        <input type="number" id="comp-ppl-${i}" value="${c.ppl||''}" placeholder="0.000" min="0" max="1" step="0.001"
+          oninput="updateCompField(${i},'ppl',this.value)">
+      </div>
+      <div class="am-field" style="margin:0">
+        <label>PPK ($)</label>
+        <input type="number" id="comp-ppk-${i}" value="${c.ppk||''}" placeholder="0.00" min="0" step="0.01"
+          oninput="updateCompField(${i},'ppk',this.value)">
+      </div>
+      <button class="btn-remove-comp" onclick="removeCompRow(${i})" style="margin-bottom:0">✕</button>
+    </div>
+  `).join('');
+}
+
+function escH(str) { return (str||'').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function showAutocomplete(i) {
+  const input = document.getElementById('comp-nombre-' + i);
+  const list = document.getElementById('ac-' + i);
+  if (!input || !list) return;
+  const q = input.value.toLowerCase();
+  const allNames = getAllCompNames();
+  const matches = q ? allNames.filter(n => n.toLowerCase().includes(q) && n !== input.value) : allNames.filter(n => n !== input.value);
+  if (!matches.length) { list.style.display = 'none'; return; }
+  list.innerHTML = matches.slice(0,6).map(n => {
+    const safeN = n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const hi = q.length > 0 ? safeN.replace(safeN.substring(safeN.toLowerCase().indexOf(q.toLowerCase()), safeN.toLowerCase().indexOf(q.toLowerCase())+q.length), '<strong style="color:var(--green)">$&</strong>') : safeN;
+    return '<div class="autocomplete-item" onmousedown="selectAutocomplete('+i+',' + JSON.stringify(n) + ')">' + hi + '</div>';
+  }).join('');
+  list.style.display = 'block';
+}
+
+function hideAutocomplete(i) {
+  const list = document.getElementById('ac-' + i);
+  if (list) list.style.display = 'none';
+}
+
+function selectAutocomplete(i, name) {
+  compRows[i].nombre = name;
+  const input = document.getElementById('comp-nombre-' + i);
+  if (input) input.value = name;
+  hideAutocomplete(i);
+}
+
+function updatePPLBar() {
+  // Read PPL values directly from DOM inputs for real-time accuracy
+  const total = compRows.reduce((s,c,i) => {
+    const el = document.getElementById('comp-ppl-' + i);
+    return s + (el ? (parseFloat(el.value)||0) : (parseFloat(c.ppl)||0));
+  }, 0);
+  const pct = Math.min(total / 1, 1) * 100;
+  const fill = document.getElementById('pplBarFill');
+  const status = document.getElementById('pplBarStatus');
+  const pctEl = document.getElementById('pplBarPct');
+  if (!fill) return;
+  fill.style.width = pct + '%';
+  fill.className = 'ppl-bar-fill ' + (total > 1.0001 ? 'ppl-bar-over' : 'ppl-bar-ok');
+  const tot = total.toFixed(3);
+  pctEl.textContent = Math.round(pct) + '%';
+  if (total > 1.0001) {
+    status.textContent = 'PPL usado: ' + tot + ' / 1.000 ⚠ EXCEDE EL LÍMITE';
+    status.className = 'ppl-status-over';
+  } else if (total < 0.9999) {
+    status.textContent = 'PPL usado: ' + tot + ' / 1.000 (queda ' + (1-total).toFixed(3) + ')';
+    status.className = 'ppl-status-under';
+  } else {
+    status.textContent = 'PPL completo: ' + tot + ' / 1.000 ✓';
+    status.className = 'ppl-status-ok';
+  }
+}
+
+function updateCostSummary() {
+  // Read from DOM for real-time accuracy
+  const totalPPL = compRows.reduce((s,c,i) => {
+    const el = document.getElementById('comp-ppl-' + i);
+    return s + (el ? (parseFloat(el.value)||0) : (parseFloat(c.ppl)||0));
+  }, 0);
+  let cost = 0;
+  compRows.forEach((c,i) => {
+    const pplEl = document.getElementById('comp-ppl-' + i);
+    const ppkEl = document.getElementById('comp-ppk-' + i);
+    const ppl = pplEl ? (parseFloat(pplEl.value)||0) : (parseFloat(c.ppl)||0);
+    const ppk = ppkEl ? (parseFloat(ppkEl.value)||0) : (parseFloat(c.ppk)||0);
+    const proportion = totalPPL > 0 ? ppl / totalPPL : 0;
+    cost += proportion * ppk;
+  });
+  const costEl = document.getElementById('amCostVal');
+  if (costEl) costEl.textContent = '$' + cost.toFixed(2);
+}
+
+function handleImgFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const base64 = e.target.result;
+    document.getElementById('amImagen').value = base64;
+    document.getElementById('imgPreview').innerHTML = '<img src="' + base64 + '" style="width:100%;height:100%;object-fit:cover">';
+    document.getElementById('uploadFileName').textContent = file.name;
+    document.getElementById('uploadLabel').style.borderColor = 'var(--green)';
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewImg() {
+  // kept for compatibility — loads existing base64 or URL into preview
+  const val = document.getElementById('amImagen').value.trim();
+  const prev = document.getElementById('imgPreview');
+  if (!val) { prev.innerHTML = '🧪'; return; }
+  const imgEl = document.createElement('img');
+  imgEl.src = val; imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover';
+  imgEl.onerror = () => { prev.innerHTML = '&#129514;'; };
+  prev.innerHTML = ''; prev.appendChild(imgEl);
+  if (val.startsWith('data:')) {
+    document.getElementById('uploadFileName').textContent = 'Imagen cargada';
+    document.getElementById('uploadLabel').style.borderColor = 'var(--green)';
+  }
+}
+
+function syncCompRowsFromDOM() {
+  // Always read current DOM values before saving — oninput can miss changes
+  compRows.forEach((c, i) => {
+    const n = document.getElementById('comp-nombre-' + i);
+    const p = document.getElementById('comp-ppl-' + i);
+    const k = document.getElementById('comp-ppk-' + i);
+    if (n) c.nombre = n.value;
+    if (p) c.ppl   = p.value;
+    if (k) c.ppk   = k.value;
+  });
+}
+
+function guardarProducto() {
+  syncCompRowsFromDOM(); // ensure DOM values are reflected in compRows
+  const nombre = document.getElementById('amNombre').value.trim();
+  const marca = document.getElementById('amMarca').value.trim();
+  const imagen = document.getElementById('amImagen').value.trim();
+  const notas = document.getElementById('amNotas').value.trim();
+  if (!nombre || !marca) return showToast('Nombre y marca son requeridos', true);
+  const componentes = compRows.filter(c => (c.nombre||'').trim()).map(c => ({
+    nombre: c.nombre.trim(),
+    ppl: parseFloat(c.ppl)||0,
+    ppk: parseFloat(c.ppk)||0
+  }));
+  if (!componentes.length) return showToast('Agrega al menos un componente', true);
+  const totalPPL = componentes.reduce((s,c) => s+c.ppl, 0);
+  if (totalPPL > 1.0001) return showToast('El total de PPL excede 1.0 — ajusta los valores', true);
+
+  const prod = { nombre, marca, imagen, notas, componentes };
+  showLoader(true);
+
+  if (state.editingId) {
+    const idx = state.productos.findIndex(p => p._id === state.editingId);
+    const original = idx !== -1 ? state.productos[idx] : null;
+
+    // Build diff
+    const diffs = [];
+    if (original) {
+      if (original.nombre !== nombre) diffs.push({ campo:'Nombre', antes:original.nombre, despues:nombre });
+      if (original.marca !== marca) diffs.push({ campo:'Marca', antes:original.marca, despues:marca });
+      if (original.notas !== notas) diffs.push({ campo:'Notas', antes:'(modificado)', despues:'(modificado)' });
+      // Compare components
+      const origComps = original.componentes || [];
+      componentes.forEach(nc => {
+        const oc = origComps.find(c => c.nombre.toLowerCase() === nc.nombre.toLowerCase());
+        if (!oc) {
+          diffs.push({ campo:'Componente', antes:'—', despues:nc.nombre+' (nuevo, PPL: '+nc.ppl+')' });
+        } else {
+          if (Math.abs((oc.ppl||0)-(nc.ppl||0)) > 0.0001) diffs.push({ campo:nc.nombre+' PPL', antes:String(oc.ppl||0), despues:String(nc.ppl||0) });
+          if (Math.abs((oc.ppk||0)-(nc.ppk||0)) > 0.0001) diffs.push({ campo:nc.nombre+' PPK', antes:'$'+(oc.ppk||0), despues:'$'+(nc.ppk||0) });
+        }
+      });
+      origComps.forEach(oc => {
+        if (!componentes.find(nc => nc.nombre.toLowerCase() === oc.nombre.toLowerCase())) {
+          diffs.push({ campo:'Componente', antes:oc.nombre+' (eliminado)', despues:'—' });
+        }
+      });
+    }
+
+    // Helper: save historial entry
+    const saveHistorial = () => {
+      if (diffs.length > 0) {
+        const notaCambio = (document.getElementById('amNotaCambio').value||'').trim();
+        const now = new Date();
+        const cambio = {
+          productoId: state.editingId,
+          productoNombre: nombre,
+          responsable: (document.getElementById('amResponsable').value||'').trim() || 'Sin nombre',
+          timestamp: now.getTime(),
+          fecha: now.toLocaleDateString('es-CL'),
+          hora: now.toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'}),
+          nota: notaCambio,
+          diffs
+        };
+        try { guardarCambioLocal(cambio); } catch(e) { console.error("Historial error:", e); }
+      }
+    };
+
+    const afterSave = () => {
+      if (idx !== -1) state.productos[idx] = { ...prod, _id: state.editingId };
+      saveHistorial();
+      showLoader(false); closeAdminModal(); renderApp();
+      showToast('Producto actualizado' + (diffs.length ? ' · '+diffs.length+' cambio(s)' : ''));
+    };
+
+    if (window.fbActualizarProducto) {
+      window.fbActualizarProducto(state.editingId, prod)
+        .then(afterSave)
+        .catch(() => { showLoader(false); showToast('Error al guardar en Firebase', true); });
+    } else {
+      // Local fallback — no Firebase yet
+      afterSave();
+    }
+  } else {
+    if (window.fbGuardarProducto) {
+      window.fbGuardarProducto(prod).then(() => {
+        showLoader(false); closeAdminModal(); renderApp();
+        showToast('Producto guardado');
+      }).catch(() => { showLoader(false); showToast('Error al guardar', true); });
+    } else {
+      prod._id = Date.now().toString();
+      state.productos.push(prod);
+      showLoader(false); closeAdminModal(); renderApp();
+      showToast('Producto guardado');
+    }
+  }
+}
+
+function editProducto(id) {
+  const prod = state.productos.find(p => p._id === id);
+  if (prod) openAdminModal(prod);
+}
+
+// ════════ HISTORIAL ════════
+
+function openHistorial() {
+  const prod = state.productos.find(p => p._id === state.editingId);
+  document.getElementById('historialSubtitle').textContent = prod ? prod.nombre : '';
+  document.getElementById('historialOverlay').classList.add('open');
+  loadHistorial(state.editingId);
+}
+
+function closeHistorial() {
+  document.getElementById('historialOverlay').classList.remove('open');
+}
+
+function loadHistorial(productoId) {
+  const c = document.getElementById('historialContent');
+  try {
+    const entries = getHistorialLocal(productoId);
+    if (!entries.length) {
+      c.innerHTML = '<div style="text-align:center;color:var(--text3);font-family:var(--font-mono);font-size:13px;padding:40px">Sin cambios registrados aún.<br><br>Los cambios se registran automáticamente al guardar ediciones.</div>';
+      return;
+    }
+    c.innerHTML = entries.map((e, idx) => {
+      const idShort = e._id ? e._id.slice(-6).toUpperCase() : String(idx+1).padStart(6,'0');
+      const diffsHtml = (e.diffs||[]).map(d =>
+        '<div class="hist-diff">' +
+        '<span class="hist-campo">' + d.campo + '</span>' +
+        '<span class="hist-antes">' + d.antes + '</span>' +
+        '<span class="hist-arrow">→</span>' +
+        '<span class="hist-despues">' + d.despues + '</span>' +
+        '</div>'
+      ).join('');
+      return '<div class="hist-entry">' +
+        '<div class="hist-header">' +
+          '<div class="hist-meta">' +
+            '<span class="hist-fecha">📅 ' + e.fecha + ' ' + e.hora + '</span>' +
+            '<span class="hist-resp">👤 ' + e.responsable + '</span>' +
+          '</div>' +
+          '<span class="hist-id">ID: #' + idShort + '</span>' +
+        '</div>' +
+        (e.nota ? '<div class="hist-nota">💬 ' + e.nota + '</div>' : '') +
+        '<div>' + (diffsHtml || '<span style="color:var(--text3);font-family:var(--font-mono);font-size:11px">Sin detalles de cambio</span>') + '</div>' +
+      '</div>';
+    }).join('');
+  } catch(err) {
+    console.error('Error historial:', err);
+    c.innerHTML = '<div style="text-align:center;color:var(--red);font-family:var(--font-mono);font-size:12px;padding:40px">Error: ' + err.message + '</div>';
+  }
+}
+
+// ════════ MARCAS ════════
+
+function populateMarcaSelect() {
+  const sel = document.getElementById('amMarca');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar marca —</option>';
+  [...state.marcas].sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.nombre; o.textContent = m.nombre;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+function renderMarcasList() {
+  const c = document.getElementById('marcasList');
+  if (!c) return;
+  if (!state.marcas.length) {
+    c.innerHTML = '<div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);padding:8px 0">Sin marcas registradas</div>';
+    return;
+  }
+  c.innerHTML = [...state.marcas].sort((a,b) => a.nombre.localeCompare(b.nombre)).map(m => `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:2px;margin-bottom:8px">
+      <span style="font-family:var(--font-mono);font-size:13px;color:var(--text)">${m.nombre}</span>
+      <button onclick="removeMarca('${m._id}','${m.nombre.replace(/'/g,"\'")}')" style="background:none;border:1px solid rgba(255,71,87,0.3);color:var(--red);border-radius:2px;padding:3px 10px;cursor:pointer;font-family:var(--font-mono);font-size:11px">✕</button>
+    </div>
+  `).join('');
+}
+
+function openMarcasPanel() {
+  renderMarcasList();
+  document.getElementById('marcasOverlay').classList.add('open');
+  document.getElementById('newMarcaInput').value = '';
+}
+
+function closeMarcasPanel() {
+  document.getElementById('marcasOverlay').classList.remove('open');
+}
+
+function addMarca() {
+  const inp = document.getElementById('newMarcaInput');
+  const nombre = inp.value.trim();
+  if (!nombre) return;
+  if (state.marcas.some(m => m.nombre.toLowerCase() === nombre.toLowerCase())) {
+    showToast('Esa marca ya existe', true); return;
+  }
+  inp.value = '';
+  // Optimistic update — add immediately to UI
+  const tempId = '_tmp_' + Date.now();
+  state.marcas.push({ _id: tempId, nombre });
+  renderMarcasList();
+  populateMarcaSelect();
+  renderApp();
+  showToast('Marca agregada: ' + nombre);
+  // Persist to Firebase in background
+  if (window.fbAddMarca) {
+    window.fbAddMarca(nombre).then(realId => {
+      // Replace temp id with real Firebase id
+      const m = state.marcas.find(m => m._id === tempId);
+      if (m) m._id = realId;
+    }).catch(() => {
+      // Rollback on failure
+      state.marcas = state.marcas.filter(m => m._id !== tempId);
+      renderMarcasList(); populateMarcaSelect(); renderApp();
+      showToast('Error al guardar en base de datos', true);
+    });
+  }
+}
+
+function removeMarca(id, nombre) {
+  if (state.productos.some(p => p.marca === nombre)) {
+    showToast('No se puede eliminar — hay productos con esta marca', true); return;
+  }
+  state.marcas = state.marcas.filter(m => m._id !== id);
+  renderMarcasList();
+  populateMarcaSelect();
+  renderApp();
+  if (window.fbRemoveMarca) window.fbRemoveMarca(id).catch(() => showToast('Error al eliminar', true));
+  showToast('Marca eliminada');
+}
+
+function openMarcaQuickAdd() {
+  document.getElementById('marcaQuickInput').value = '';
+  document.getElementById('marcaQuickOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('marcaQuickInput').focus(), 100);
+}
+
+function closeMarcaQuickAdd() {
+  document.getElementById('marcaQuickOverlay').classList.remove('open');
+}
+
+function confirmMarcaQuickAdd() {
+  const nombre = document.getElementById('marcaQuickInput').value.trim();
+  if (!nombre) return;
+  if (state.marcas.some(m => m.nombre.toLowerCase() === nombre.toLowerCase())) {
+    // already exists — just select it
+    document.getElementById('amMarca').value = nombre;
+    closeMarcaQuickAdd();
+    return;
+  }
+  // Optimistic update
+  const tempId = '_tmp_' + Date.now();
+  state.marcas.push({ _id: tempId, nombre });
+  populateMarcaSelect();
+  document.getElementById('amMarca').value = nombre;
+  renderApp();
+  closeMarcaQuickAdd();
+  showToast('Marca creada: ' + nombre);
+  if (window.fbAddMarca) {
+    window.fbAddMarca(nombre).then(realId => {
+      const m = state.marcas.find(m => m._id === tempId);
+      if (m) m._id = realId;
+    }).catch(() => {
+      state.marcas = state.marcas.filter(m => m._id !== tempId);
+      populateMarcaSelect(); renderApp();
+      showToast('Error al guardar en base de datos', true);
+    });
+  }
+}
+
+// ════════ COPY ════════
+let _copySourceId = null;
+
+function copiarProducto(id) {
+  const prod = state.productos.find(p => p._id === id);
+  if (!prod) return;
+  _copySourceId = id;
+  const copyName = prod.nombre + ' (copia)';
+  document.getElementById('copyNombre').value = copyName;
+  document.getElementById('copyError').style.display = 'none';
+  document.getElementById('copyOverlay').classList.add('open');
+  setTimeout(() => {
+    const inp = document.getElementById('copyNombre');
+    inp.focus(); inp.select();
+  }, 100);
+}
+
+function closeCopyModal() {
+  document.getElementById('copyOverlay').classList.remove('open');
+  _copySourceId = null;
+}
+
+function confirmCopy() {
+  const source = state.productos.find(p => p._id === _copySourceId);
+  if (!source) return closeCopyModal();
+  const nombre = document.getElementById('copyNombre').value.trim();
+  const errEl = document.getElementById('copyError');
+
+  if (!nombre) {
+    errEl.textContent = 'El nombre no puede estar vacío'; errEl.style.display = 'block'; return;
+  }
+  if (nombre === source.nombre) {
+    errEl.textContent = 'El nombre debe ser diferente al original'; errEl.style.display = 'block'; return;
+  }
+  if (state.productos.some(p => p.nombre.toLowerCase() === nombre.toLowerCase())) {
+    errEl.textContent = 'Ya existe un producto con ese nombre'; errEl.style.display = 'block'; return;
+  }
+
+  const copia = {
+    nombre,
+    marca: source.marca,
+    imagen: source.imagen || '',
+    notas: source.notas || '',
+    componentes: source.componentes.map(c => ({...c}))
+  };
+
+  showLoader(true);
+  closeCopyModal();
+  if (window.fbGuardarProducto) {
+    window.fbGuardarProducto(copia).then(() => {
+      showLoader(false); renderApp();
+      showToast('Copia creada: ' + nombre);
+    }).catch(() => { showLoader(false); showToast('Error al guardar', true); });
+  } else {
+    copia._id = Date.now().toString();
+    state.productos.push(copia);
+    showLoader(false); renderApp();
+    showToast('Copia creada: ' + nombre);
+  }
+}
+
+// ════════ CONFIRM ════════
+function confirmarEliminar(id) {
+  const prod = state.productos.find(p => p._id === id);
+  document.getElementById('confirmMsg').textContent = `¿Eliminar "${prod?.nombre}"? Esta acción no se puede deshacer.`;
+  state.pendingConfirm = id;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  state.pendingConfirm = null;
+}
+function confirmOk() {
+  const id = state.pendingConfirm;
+  if (!id) return closeConfirm();
+  showLoader(true);
+  state.productos = state.productos.filter(p => p._id !== id);
+  renderApp();
+  if (window.fbEliminarProducto) {
+    window.fbEliminarProducto(id).then(() => { showLoader(false); showToast('Producto eliminado'); })
+      .catch(() => { showLoader(false); showToast('Error al eliminar', true); });
+  } else { showLoader(false); showToast('Producto eliminado'); }
+  closeConfirm();
+}
+
+// ════════ UTILS ════════
+function showLoader(v) {
+  document.getElementById('loader').style.display = v ? 'flex' : 'none';
+  if (v) {
+    // Safety: auto-hide after 8 seconds to prevent getting stuck
+    clearTimeout(window._loaderTimeout);
+    window._loaderTimeout = setTimeout(() => showLoader(false), 8000);
+  } else {
+    clearTimeout(window._loaderTimeout);
+  }
+}
+
+function showToast(msg, err=false) {
+  const c = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + (err ? 'err' : 'ok');
+  el.textContent = (err ? '✕ ' : '✓ ') + msg;
+  c.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transform='translateX(100%)'; el.style.transition='all .3s'; setTimeout(()=>el.remove(),300); }, 3000);
+}
+
+
+// ════════════════════════════════════
+// PANEL DE PRODUCCIÓN
+// ════════════════════════════════════
+
+let prodClockInterval = null;
+
+function openProduccionPanel() {
+  document.getElementById('produccionPanel').style.display = 'block';
+  initProdForm();
+  startProdClock();
+  switchProdTab('nuevo');
+}
+
+function startProdClock() {
+  clearInterval(prodClockInterval);
+  updateProdClock();
+  prodClockInterval = setInterval(updateProdClock, 1000);
+}
+
+function updateProdClock() {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+  const pad = n => String(n).padStart(2,'0');
+  const fecha = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+  const hora  = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+  const f = document.getElementById('prod-fecha');
+  const h = document.getElementById('prod-hora');
+  if (f) f.value = fecha;
+  if (h) h.value = hora + ' (Chile)';
+}
+
+function initProdForm() {
+  // Codigo
+  document.getElementById('prod-codigo').value = getNextCodigo();
+  // Reset fields
+  document.getElementById('prod-litros').value = '';
+  document.getElementById('prod-obs').value = '';
+  document.getElementById('prodInfoBox').style.display = 'none';
+  // Populate producto select
+  const sel = document.getElementById('prod-producto');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— Seleccionar fórmula —</option>';
+  [...state.productos].sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p._id; o.textContent = p.nombre + ' (' + p.marca + ')';
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+  // Populate responsable
+  populateResponsableSelect();
+  // Pre-select logged user if in responsable list
+  const resp = getResponsables();
+  const match = resp.find(r => r.toLowerCase() === state.responsable.toLowerCase());
+  if (!match && state.responsable) {
+    // Auto-add the logged responsable if not in list
+    const list2 = getResponsables();
+    if (!list2.includes(state.responsable)) { list2.push(state.responsable); saveResponsables(list2); }
+    populateResponsableSelect();
+  }
+  if (state.responsable) document.getElementById('prod-responsable').value = state.responsable;
+  // Prod historial filter
+  const sf = document.getElementById('prod-filter-prod');
+  if (sf) {
+    sf.innerHTML = '<option value="">Todos los productos</option>';
+    [...state.productos].sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(p => {
+      const o = document.createElement('option'); o.value = p._id;
+      o.textContent = p.nombre; sf.appendChild(o);
+    });
+  }
+  renderProdHistorial();
+}
+
+function populateResponsableSelect() {
+  const sel = document.getElementById('prod-responsable');
+  const cur = sel ? sel.value : '';
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Seleccionar —</option>';
+  getResponsables().forEach(r => {
+    const o = document.createElement('option'); o.value = r; o.textContent = r;
+    sel.appendChild(o);
+  });
+  if (cur) sel.value = cur;
+}
+
+function updateProdInfo() {
+  const prodId = document.getElementById('prod-producto').value;
+  const litros = parseFloat(document.getElementById('prod-litros').value) || 0;
+  const box = document.getElementById('prodInfoBox');
+  const ing = document.getElementById('prodIngredientes');
+  if (!prodId || litros <= 0) { box.style.display = 'none'; return; }
+  const prod = state.productos.find(p => p._id === prodId);
+  if (!prod) { box.style.display = 'none'; return; }
+  const comps = prod.componentes || [];
+  const totalPPL = comps.reduce((s,c) => s + (c.ppl||0), 0);
+  const mlTotal = litros * 1000;
+  ing.innerHTML = comps.map(c => {
+    const ml = totalPPL > 0 ? (c.ppl/totalPPL)*mlTotal : c.ppl*mlTotal;
+    const str = ml >= 1000 ? (ml/1000).toFixed(2)+'L' : ml.toFixed(0)+'ml';
+    return '<span style="background:var(--bg2);border:1px solid var(--border2);border-radius:2px;padding:4px 10px;font-family:var(--font-mono);font-size:11px;color:var(--text2)">' +
+      '<span style="color:var(--text)">' + c.nombre + '</span> · <span style="color:var(--green)">' + str + '</span></span>';
+  }).join('');
+  box.style.display = 'block';
+}
+
+function registrarProduccion() {
+  const prodId = document.getElementById('prod-producto').value;
+  const litros = parseFloat(document.getElementById('prod-litros').value);
+  const responsable = document.getElementById('prod-responsable').value;
+  const obs = document.getElementById('prod-obs').value.trim();
+  if (!prodId) return showToast('Selecciona un producto', true);
+  if (!litros || litros <= 0) return showToast('Ingresa los litros producidos', true);
+  if (!responsable) return showToast('Selecciona un responsable', true);
+
+  const prod = state.productos.find(p => p._id === prodId);
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
+  const pad = n => String(n).padStart(2,'0');
+
+  const registro = {
+    id: 'p_' + Date.now(),
+    codigo: document.getElementById('prod-codigo').value,
+    productoId: prodId,
+    productoNombre: prod ? prod.nombre : '—',
+    productomarca: prod ? prod.marca : '—',
+    litros,
+    responsable,
+    fecha: document.getElementById('prod-fecha').value,
+    hora: pad(now.getHours()) + ':' + pad(now.getMinutes()),
+    timestamp: now.getTime(),
+    obs
+  };
+
+  const list = getProduccionList();
+  list.push(registro);
+  saveProduccionList(list);
+
+  showToast('✓ Lote ' + registro.codigo + ' registrado');
+  initProdForm(); // reset with next codigo
+  switchProdTab('historial');
+}
+
+function renderProdHistorial() {
+  const c = document.getElementById('prodHistorialList');
+  if (!c) return;
+  const q = (document.getElementById('prod-search')||{value:''}).value.toLowerCase();
+  const fProd = (document.getElementById('prod-filter-prod')||{value:''}).value;
+  let list = getProduccionList().sort((a,b) => (b.timestamp||0)-(a.timestamp||0));
+  if (q) list = list.filter(r =>
+    (r.codigo||'').toLowerCase().includes(q) ||
+    (r.productoNombre||'').toLowerCase().includes(q) ||
+    (r.responsable||'').toLowerCase().includes(q)
+  );
+  if (fProd) list = list.filter(r => r.productoId === fProd);
+  if (!list.length) {
+    c.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text3);font-family:var(--font-mono);font-size:13px">Sin registros de producción aún</div>';
+    return;
+  }
+  c.innerHTML = list.map(r => {
+    return '<div class="prod-card">' +
+      '<div class="prod-card-head">' +
+        '<div style="display:flex;align-items:center;gap:12px">' +
+          '<span class="prod-codigo">' + r.codigo + '</span>' +
+          '<span class="prod-litros-badge">' + r.litros + ' L</span>' +
+        '</div>' +
+        '<div class="prod-meta">' +
+          '<span class="prod-meta-item">📅 <span>' + r.fecha + ' ' + r.hora + '</span></span>' +
+          '<span class="prod-meta-item">👤 <span>' + r.responsable + '</span></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="prod-producto-name">' + r.productoNombre + ' <span style="color:var(--text3);font-size:12px;font-weight:400">· ' + (r.productomarca||'') + '</span></div>' +
+      (r.obs ? '<div class="prod-obs">💬 ' + r.obs + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+function switchProdTab(tab) {
+  // Update button styles
+  ['nuevo','historial'].forEach(t => {
+    const btn = document.getElementById('prodBtn-' + t);
+    if (!btn) return;
+    if (t === tab) {
+      btn.style.background = 'rgba(245,166,35,0.15)';
+      btn.style.borderColor = 'rgba(245,166,35,0.3)';
+      btn.style.color = 'var(--amber)';
+    } else {
+      btn.style.background = 'var(--green-dim)';
+      btn.style.borderColor = 'rgba(0,229,160,0.3)';
+      btn.style.color = 'var(--green)';
+    }
+  });
+  // Switch panels
+  document.querySelectorAll('#produccionPanel .tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('prodTab-' + tab).classList.add('active');
+  if (tab === 'historial') renderProdHistorial();
+  if (tab === 'nuevo') { document.getElementById('prod-codigo').value = getNextCodigo(); }
+}
+
+// ── Responsables ──
+function openAddResponsable() {
+  document.getElementById('responsableInput').value = '';
+  document.getElementById('responsableOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('responsableInput').focus(), 100);
+}
+function closeAddResponsable() {
+  document.getElementById('responsableOverlay').classList.remove('open');
+}
+function confirmAddResponsable() {
+  const nombre = document.getElementById('responsableInput').value.trim();
+  if (!nombre) return;
+  const list = getResponsables();
+  if (!list.includes(nombre)) {
+    list.push(nombre);
+    saveResponsables(list);
+  }
+  populateResponsableSelect();
+  document.getElementById('prod-responsable').value = nombre;
+  closeAddResponsable();
+  showToast('Responsable agregado: ' + nombre);
+}
+
+// Close overlays on backdrop click
+// Use document-level click delegation for all overlays (handles dynamically added elements)
+document.addEventListener('click', function(e) {
+  const overlayHandlers = {
+    adminRespOverlay:  closeAddAdminResponsable,
+    formulaOverlay:    closeFormulaModal,
+    adminOverlay:      closeAdminModal,
+    confirmOverlay:    closeConfirm,
+    copyOverlay:       closeCopyModal,
+    marcasOverlay:     closeMarcasPanel,
+    marcaQuickOverlay: closeMarcaQuickAdd,
+    historialOverlay:  closeHistorial,
+    responsableOverlay:closeAddResponsable,
+  };
+  const handler = overlayHandlers[e.target.id];
+  if (handler) handler();
+});
+
+</script>
+</body>
+</html>
