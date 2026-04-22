@@ -12,12 +12,12 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAbca2JHCBSgDYATMk2mfWRR6VdOQnsQLw",
-  authDomain: "shiptrack-653c1.firebaseapp.com",
-  projectId: "shiptrack-653c1",
-  storageBucket: "shiptrack-653c1.firebasestorage.app",
-  messagingSenderId: "753521952783",
-  appId: "1:753521952783:web:6b6dda102e3e2fcacf7b7a"
+  apiKey: "AIzaSyDXK3wHjTiw6HULGbAEABxr2g83fIwf2Qk",
+  authDomain: "chemlab-713fc.firebaseapp.com",
+  projectId: "chemlab-713fc",
+  storageBucket: "chemlab-713fc.firebasestorage.app",
+  messagingSenderId: "500157040201",
+  appId: "1:500157040201:web:43017fc5a8be988b27e198"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -1397,7 +1397,14 @@ function updateFormula() {
     const g = ml; // 1 ml water = 1 g, standard approximation
     const gStr = g.toFixed(1) + ' g';
     const compCost = totalPPL > 0 ? ((ppl/totalPPL) * ppk * litros) : 0;
-    const costStr = (ppk > 0 && state.mode === 'admin') ? '<span style="font-family:var(--font-mono);font-size:11px;color:var(--amber)">$' + compCost.toFixed(2) + '</span>' : '';
+    const costStr = (ppk > 0 && state.mode === 'admin')
+      ? '<div style="display:flex;gap:8px;align-items:center;margin-top:3px;flex-wrap:wrap">' +
+          '<span style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">PPK:</span>' +
+          '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text2)">$' + ppk.toLocaleString('es-CL') + '</span>' +
+          '<span style="font-family:var(--font-mono);font-size:10px;color:var(--text3)">→</span>' +
+          '<span style="font-family:var(--font-mono);font-size:11px;color:var(--amber);font-weight:700">$' + compCost.toFixed(2) + '</span>' +
+        '</div>'
+      : '';
     return `<tr>
       <td><div class="comp-name">${c.nombre}</div>${costStr}</td>
       <td><span class="comp-ppl-badge">${ppl} PPL</span></td>
