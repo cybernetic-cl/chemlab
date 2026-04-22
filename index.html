@@ -681,7 +681,6 @@ body::before {
         <div id="loginError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Contraseña incorrecta</div>
       </div>
       <button class="btn-login" onclick="doLogin()">ACCEDER</button>
-      <div class="login-hint">Admin: chem2024</div>
     </div>
   </div>
 </div>
@@ -1096,6 +1095,15 @@ body::before {
 
 <script>
 
+// ════════ AUTH ════════
+async function hashPassword(pass) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+async function checkAdminPass(pass) {
+  return (await hashPassword(pass)) === ADMIN_PASS_HASH;
+}
+
 // ════════ STATE ════════
 
 function getAdminResponsables() {
@@ -1183,7 +1191,7 @@ function getNextCodigo() {
   const next = Math.max(...nums) + 1;
   return 'L' + String(next).padStart(6,'0');
 }
-const ADMIN_PASS = 'chem2024';
+const ADMIN_PASS_HASH = '0e1db2979be2947b6ac7ac3f6275a70c346c49ff3593eff7b2a8dbf0210b7d4f'; // SHA-256
 
 // ════════ LOGIN ════════
 document.addEventListener('DOMContentLoaded', function() { document.getElementById('loginMode').addEventListener('change', function() {
@@ -1196,11 +1204,15 @@ function doLogin() {
   const mode = document.getElementById('loginMode').value;
   if (mode === 'admin') {
     const pass = document.getElementById('loginPass').value;
-    if (pass !== ADMIN_PASS) {
-      document.getElementById('loginError').style.display = 'block';
-      return;
-    }
-    state.responsable = 'Administrador';
+    checkAdminPass(pass).then(ok => {
+      if (!ok) {
+        document.getElementById('loginError').style.display = 'block';
+        return;
+      }
+      state.responsable = 'Administrador';
+      _completeLogin(mode);
+    });
+    return; // wait for async
   }
   if (mode === 'prod') {
     state.responsable = '';
@@ -1209,6 +1221,10 @@ function doLogin() {
     return;
   }
 
+  _completeLogin(mode);
+}
+
+function _completeLogin(mode) {
   state.mode = mode;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
@@ -1216,7 +1232,8 @@ function doLogin() {
   const modeBadgeText = { admin:'ADMIN', user:'USUARIO' };
   (document.getElementById('topMode')||{}).textContent = modeLabels[mode]||'';
   (document.getElementById('modeBadge')||{}).textContent = modeBadgeText[mode]||mode.toUpperCase();
-  document.getElementById('modeBadge').className = 'mode-badge ' + (mode === 'admin' ? 'mode-admin' : 'mode-user');
+  const mb = document.getElementById('modeBadge');
+  if (mb) mb.className = 'mode-badge ' + (mode === 'admin' ? 'mode-admin' : 'mode-user');
   (document.getElementById('pageSubtitle')||{}).textContent = mode === 'admin' ? 'Gestión completa de fórmulas' : 'Consulta y ajuste de producción';
   (document.getElementById('btnNewProd')||{style:{}}).style.display = mode === 'admin' ? 'flex' : 'none';
   (document.getElementById('btnMarcas')||{style:{}}).style.display = mode === 'admin' ? 'inline-flex' : 'none';
@@ -2184,19 +2201,22 @@ function eliminarProdRegistro(id) {
 }
 function confirmDeleteProdRegistro() {
   const pass = document.getElementById('prodDeletePassInput').value;
-  if (pass !== ADMIN_PASS) {
-    document.getElementById('prodDeletePassError').style.display = 'block';
-    document.getElementById('prodDeletePassInput').value = '';
-    document.getElementById('prodDeletePassInput').focus();
-    return;
-  }
-  const id = state._pendingDeleteProdId;
-  const list = getProduccionList().filter(r => r.id !== id);
-  saveProduccionList(list);
-  document.getElementById('prodDeletePassOverlay').classList.remove('open');
-  state._pendingDeleteProdId = null;
-  renderProdHistorial();
-  showToast('Registro eliminado');
+  checkAdminPass(pass).then(ok => {
+    if (!ok) {
+      document.getElementById('prodDeletePassError').style.display = 'block';
+      document.getElementById('prodDeletePassInput').value = '';
+      document.getElementById('prodDeletePassInput').focus();
+      return;
+    }
+    const id = state._pendingDeleteProdId;
+    const list = getProduccionList().filter(r => r.id !== id);
+    saveProduccionList(list);
+    document.getElementById('prodDeletePassOverlay').classList.remove('open');
+    state._pendingDeleteProdId = null;
+    renderProdHistorial();
+    showToast('Registro eliminado');
+  });
+  return; // async
 }
 function closeProdDeletePass() {
   document.getElementById('prodDeletePassOverlay').classList.remove('open');
