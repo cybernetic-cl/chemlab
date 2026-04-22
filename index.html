@@ -64,7 +64,11 @@ window.fbRemoveMarca = async function(id) {
   await deleteDoc(doc(db, 'quimicos_marcas', id));
 };
 
-loadAll();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadAll);
+} else {
+  loadAll();
+}
 </script>
 
 <style>
@@ -518,6 +522,16 @@ body::before {
 .atom.sm .atom-electron { width:4px; height:4px; left:-2px; }
 .atom-orbit:nth-child(3) .atom-electron { background:var(--blue); }
 @keyframes atomOrbit { from{transform:rotate(var(--r,0deg))} to{transform:rotate(calc(var(--r,0deg) + 360deg))} }
+.tab-panel { display:none; }
+.tab-panel.active { display:block; }
+
+.btn-danger { background:none; border:1px solid rgba(255,71,87,0.35); color:var(--red); border-radius:2px; cursor:pointer; font-family:var(--font-mono); transition:all .15s; }
+.btn-danger:hover { background:rgba(255,71,87,0.1); }
+.btn-sm { padding:4px 10px; font-size:11px; }
+
+@media(max-width:768px) {
+  .hist-filters-grid { grid-template-columns:1fr !important; }
+}
 ::-webkit-scrollbar { width:4px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
@@ -702,6 +716,224 @@ body::before {
   </div>
 </div>
 
+
+<!-- FORMULA DETAIL MODAL -->
+<div class="overlay" id="formulaOverlay">
+  <div class="formula-modal" id="formulaModal">
+    <div style="height:2px;background:linear-gradient(90deg,var(--green),var(--blue));position:sticky;top:0"></div>
+    <div class="fm-header">
+      <div class="fm-img" id="fmImg"></div>
+      <div>
+        <div class="fm-title" id="fmTitle"></div>
+        <div class="fm-marca" id="fmMarca"></div>
+      </div>
+      <button class="fm-close" onclick="closeFormulaModal()">✕</button>
+    </div>
+    <div class="fm-adjuster">
+      <div class="adj-label">⚗ Ajustador de producción — ingresa los litros a preparar</div>
+      <div class="adj-controls">
+        <button class="adj-btn" onclick="adjustLitros(-1)">−</button>
+        <input class="adj-input" id="litrosInput" type="number" value="1" min="0.1" step="0.1" oninput="updateFormula()">
+        <span class="adj-unit">litros</span>
+        <button class="adj-btn" onclick="adjustLitros(1)">+</button>
+        <div class="adj-info" id="adjInfo"></div>
+      </div>
+    </div>
+    <div class="fm-components">
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Componente / Costo</th><th>PPL</th><th>Proporción</th>
+            <th style="text-align:right">Mililitros / Litros</th>
+            <th style="text-align:right">Gramos</th>
+          </tr>
+        </thead>
+        <tbody id="compTableBody"></tbody>
+      </table>
+    </div>
+    <div class="totals-row">
+      <div><div class="totals-label">Total a preparar</div></div>
+      <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+        <span class="totals-val" id="totalVal">—</span>
+        <span class="totals-unit">ml</span>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--text3);">/</span>
+        <span style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--blue)" id="totalGrams">—</span>
+        <span id="fmCostLabel" style="font-family:var(--font-mono);font-size:11px;color:var(--text3);margin-left:8px;">Costo:</span>
+        <span id="fmCost" style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--amber)">—</span>
+      </div>
+    </div>
+    <div class="fm-notes" id="fmNotesSection" style="display:none">
+      <div class="fm-notes-title">📋 Notas de la fórmula</div>
+      <div class="fm-notes-body" id="fmNotesBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PRODUCT MODAL -->
+<div class="overlay" id="adminOverlay">
+  <div class="admin-modal">
+    <div class="am-header" style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div class="am-title" id="amTitle">NUEVO PRODUCTO</div>
+        <div class="am-sub">Completa los datos de la fórmula química</div>
+      </div>
+      <button class="fm-close" onclick="closeAdminModal()">✕</button>
+    </div>
+    <div class="am-body">
+      <div class="am-section">// Información del producto</div>
+      <div class="form-row">
+        <div class="am-field">
+          <label>Nombre del producto <span style="color:var(--red)">*</span></label>
+          <input type="text" id="amNombre" placeholder="Ej: Desengrasante XT-400">
+        </div>
+        <div class="am-field">
+          <label>Marca <span style="color:var(--red)">*</span></label>
+          <div style="display:flex;gap:8px">
+            <select id="amMarca" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;cursor:pointer;-webkit-appearance:none">
+              <option value="">— Seleccionar marca —</option>
+            </select>
+            <button type="button" onclick="openMarcaQuickAdd()" title="Nueva marca" style="background:var(--green-dim);border:1px solid rgba(0,229,160,0.3);color:var(--green);border-radius:2px;padding:0 14px;cursor:pointer;font-size:20px;font-weight:300;flex-shrink:0;line-height:1">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="am-field">
+        <label>Imagen del producto (opcional)</label>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="flex:1">
+            <label for="amImagenFile" id="uploadLabel" style="display:flex;align-items:center;gap:10px;cursor:pointer;background:var(--bg3);border:1px dashed var(--border2);border-radius:2px;padding:10px 14px;transition:border-color .2s">
+              <span style="font-size:18px">📁</span>
+              <span id="uploadFileName" style="font-family:var(--font-mono);font-size:12px;color:var(--text3)">Seleccionar imagen...</span>
+            </label>
+            <input type="file" id="amImagenFile" accept="image/*" style="display:none" onchange="handleImgFile(this)">
+            <input type="hidden" id="amImagen">
+          </div>
+          <div class="img-preview" id="imgPreview" style="cursor:pointer" onclick="document.getElementById('amImagenFile').click()">🧪</div>
+        </div>
+      </div>
+      <div class="am-section">// Componentes, PPL y Costo</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:12px;line-height:1.6;">PPL = Partes por Litro (total debe ser ≤ 1.0) · PPK = Precio por Kilo/Litro del insumo</div>
+      <div class="ppl-bar-wrap">
+        <div class="ppl-bar-track"><div class="ppl-bar-fill ppl-bar-ok" id="pplBarFill" style="width:0%"></div></div>
+        <div class="ppl-bar-label"><span id="pplBarStatus" class="ppl-status-under">PPL usado: 0.000 / 1.000</span><span id="pplBarPct">0%</span></div>
+      </div>
+      <div class="comp-builder" id="compBuilder"></div>
+      <button class="btn-add-comp" onclick="addCompRow()">+ AGREGAR COMPONENTE</button>
+      <div class="cost-row" id="costRow">
+        <div><div class="cost-label">Costo de producción estimado</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:2px">por litro, basado en PPK</div></div>
+        <div><span class="cost-val" id="amCostVal">$0</span><span class="cost-unit">/ litro</span></div>
+      </div>
+      <div class="am-section" style="margin-top:24px">// Notas de la fórmula</div>
+      <div class="am-field">
+        <label>Notas, observaciones e instrucciones</label>
+        <textarea class="notes-textarea" id="amNotas" placeholder="Ej: Agitar bien antes de usar..."></textarea>
+      </div>
+    </div>
+    <div class="am-body" id="amNotaCambioWrap" style="padding:0 28px 20px;display:none">
+      <div class="am-section" style="margin-top:0">// Responsable y nota del cambio</div>
+      <div class="am-field" style="margin-bottom:12px">
+        <label>Tu nombre <span style="color:var(--red)">*</span></label>
+        <div style="display:flex;gap:8px">
+          <select id="amResponsable" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;cursor:pointer">
+            <option value="">— Seleccionar —</option>
+          </select>
+          <button type="button" onclick="openAddAdminResponsable()" title="Agregar nombre" style="background:var(--green-dim);border:1px solid rgba(0,229,160,0.3);color:var(--green);border-radius:2px;padding:0 14px;cursor:pointer;font-size:20px;font-weight:300;flex-shrink:0;line-height:1">+</button>
+        </div>
+      </div>
+      <div class="am-field" style="margin-bottom:0">
+        <label>¿Por qué se hizo este cambio? <span style="color:var(--text3)">(máx. 100 car.)</span></label>
+        <input type="text" id="amNotaCambio" maxlength="100" placeholder="Ej: Ajuste por nueva materia prima"
+          style="background:var(--bg3);border:1px solid rgba(245,166,35,0.3);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:12px;width:100%;outline:none"
+          oninput="document.getElementById('amNotaCount').textContent=this.value.length+'/100'">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:4px;text-align:right" id="amNotaCount">0/100</div>
+      </div>
+    </div>
+    <div class="am-actions">
+      <button class="btn-secondary" onclick="closeAdminModal()">Cancelar</button>
+      <button class="btn-secondary" id="btnVerHistorial" style="display:none;border-color:rgba(74,158,255,0.4);color:var(--blue)" onclick="openHistorial()">📋 Historial</button>
+      <button class="btn-primary" onclick="guardarProducto()">GUARDAR FÓRMULA</button>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORIAL MODAL -->
+<div class="overlay" id="historialOverlay">
+  <div class="formula-modal" style="max-width:720px">
+    <div style="padding:20px 28px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:700;letter-spacing:2px;color:var(--blue)">📋 HISTORIAL DE CAMBIOS</div>
+        <div id="historialSubtitle" style="font-family:var(--font-mono);font-size:11px;color:var(--text3);margin-top:3px"></div>
+      </div>
+      <button class="fm-close" onclick="closeHistorial()">✕</button>
+    </div>
+    <div id="historialContent" style="padding:20px 28px;max-height:65vh;overflow-y:auto">
+      <div style="text-align:center;color:var(--text3);font-family:var(--font-mono);font-size:12px;padding:40px">Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM MODAL -->
+<div class="overlay" id="confirmOverlay">
+  <div class="confirm-modal">
+    <div class="confirm-title">⚠ Confirmar</div>
+    <div class="confirm-msg" id="confirmMsg"></div>
+    <div class="confirm-actions">
+      <button class="btn-secondary" onclick="closeConfirm()">Cancelar</button>
+      <button class="btn-secondary" style="border-color:rgba(255,71,87,0.4);color:var(--red)" onclick="confirmOk()">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- COPY MODAL -->
+<div class="overlay" id="copyOverlay">
+  <div class="confirm-modal" style="width:420px">
+    <div class="confirm-title" style="color:var(--green)">⊕ Copiar Producto</div>
+    <div class="confirm-msg">Ingresa un nombre nuevo para la copia.</div>
+    <div style="margin-bottom:20px">
+      <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:7px">Nombre del nuevo producto <span style="color:var(--red)">*</span></div>
+      <input type="text" id="copyNombre" placeholder="Ej: Desengrasante XT-400 v2"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none"
+        onkeydown="if(event.key==='Enter')confirmCopy()">
+      <div id="copyError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none"></div>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn-secondary" onclick="closeCopyModal()">Cancelar</button>
+      <button class="btn-secondary" style="border-color:rgba(0,229,160,0.3);color:var(--green)" onclick="confirmCopy()">Crear copia</button>
+    </div>
+  </div>
+</div>
+
+<!-- MARCAS PANEL -->
+<div class="overlay" id="marcasOverlay">
+  <div class="confirm-modal" style="width:420px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div class="confirm-title" style="color:var(--green);margin:0">🏷 Gestión de Marcas</div>
+      <button class="fm-close" onclick="closeMarcasPanel()">✕</button>
+    </div>
+    <div id="marcasList" style="margin-bottom:16px"></div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="newMarcaInput" placeholder="Nombre de la marca..."
+        style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:9px 12px;font-family:var(--font-mono);font-size:12px;outline:none"
+        onkeydown="if(event.key==='Enter')addMarca()">
+      <button onclick="addMarca()" style="background:var(--green);color:#000;border:none;border-radius:2px;padding:9px 16px;font-family:var(--font-display);font-size:14px;font-weight:700;cursor:pointer">+ Agregar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MARCA QUICK ADD -->
+<div class="overlay" id="marcaQuickOverlay">
+  <div class="confirm-modal" style="width:380px">
+    <div class="confirm-title" style="color:var(--green)">+ Nueva Marca</div>
+    <div class="confirm-msg">Ingresa el nombre de la nueva marca.</div>
+    <input type="text" id="marcaQuickInput" placeholder="Nombre de la marca..."
+      style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;margin-bottom:20px"
+      onkeydown="if(event.key==='Enter')confirmMarcaQuickAdd()">
+    <div class="confirm-actions">
+      <button class="btn-secondary" onclick="closeMarcaQuickAdd()">Cancelar</button>
+      <button class="btn-secondary" style="border-color:rgba(0,229,160,0.3);color:var(--green)" onclick="confirmMarcaQuickAdd()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- GESTIÓN ECOMMERCE -->
 <div id="produccionPanel" style="display:none;min-height:100vh;background:var(--bg);position:relative;z-index:1">
   <div class="topbar">
@@ -714,8 +946,8 @@ body::before {
   <div class="main" style="max-width:900px">
     <div class="page-header">
       <div>
-        <div class="page-title">REGISTRO DE <span style="color:var(--amber)">PRODUCCIÓN</span></div>
-        <div class="page-sub">Registra lotes de producción y consulta el historial</div>
+        <div class="page-title" id="prodPanelTitle">REGISTRO DE <span style="color:var(--amber)">PRODUCCIÓN</span></div>
+        <div class="page-sub" id="prodPanelSub">Registra lotes de producción y consulta el historial</div>
       </div>
       <div style="display:flex;gap:10px" id="prodTabBar">
         <button class="btn-new" id="prodBtn-nuevo" onclick="switchProdTab('nuevo')" style="border-color:rgba(245,166,35,0.3);color:var(--amber);background:rgba(245,166,35,0.15)">⊕ Nuevo Registro</button>
@@ -757,23 +989,17 @@ body::before {
           </div>
           <div class="am-field">
             <label>Producto <span style="color:var(--red)">*</span></label>
-            <select id="prod-producto" style="background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;cursor:pointer" onchange="updateProdInfo()">
+            <select id="prod-producto" style="background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;cursor:pointer">
               <option value="">— Seleccionar fórmula —</option>
             </select>
           </div>
           <div class="am-field">
             <label>Litros producidos <span style="color:var(--red)">*</span></label>
             <input type="number" id="prod-litros" placeholder="Ej: 50" min="0.1" step="0.1"
-              style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none"
-              oninput="updateProdInfo()">
+              style="background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none">
           </div>
         </div>
 
-        <!-- Product info summary -->
-        <div id="prodInfoBox" style="display:none;background:var(--bg3);border:1px solid rgba(0,229,160,0.15);border-radius:2px;padding:14px 16px;margin-bottom:16px">
-          <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Ingredientes para esta producción</div>
-          <div id="prodIngredientes" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-        </div>
 
         <div class="am-field">
           <label>Observaciones (opcional)</label>
@@ -791,12 +1017,45 @@ body::before {
 
     <!-- TAB HISTORIAL -->
     <div id="prodTab-historial" class="tab-panel">
-      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
-        <input type="text" id="prod-search" class="search-input" placeholder="🔍 Buscar por código, producto o responsable..." oninput="renderProdHistorial()" style="flex:1;min-width:200px">
-        <select id="prod-filter-prod" class="filter-select" onchange="renderProdHistorial()">
-          <option value="">Todos los productos</option>
-        </select>
+
+      <!-- Filter bar -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:2px;padding:16px 20px;margin-bottom:16px">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px">Filtros</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px" class="hist-filters-grid">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:5px">🔍 Buscar</div>
+            <input type="text" id="prod-search" class="search-input" placeholder="Código, producto, responsable..."
+              oninput="renderProdHistorial()" style="width:100%;font-size:12px">
+          </div>
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:5px">📦 Producto</div>
+            <select id="prod-filter-prod" class="filter-select" onchange="renderProdHistorial()" style="width:100%">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:5px">👤 Responsable</div>
+            <select id="prod-filter-resp" class="filter-select" onchange="renderProdHistorial()" style="width:100%">
+              <option value="">Todos</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end" class="hist-filters-grid">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:5px">📅 Desde</div>
+            <input type="date" id="prod-filter-desde" class="filter-select" onchange="renderProdHistorial()" style="width:100%">
+          </div>
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-bottom:5px">📅 Hasta</div>
+            <input type="date" id="prod-filter-hasta" class="filter-select" onchange="renderProdHistorial()" style="width:100%">
+          </div>
+          <button onclick="clearProdFiltros()" style="background:none;border:1px solid var(--border2);color:var(--text3);border-radius:2px;padding:9px 16px;font-family:var(--font-mono);font-size:11px;cursor:pointer;white-space:nowrap" onmouseover="this.style.borderColor='var(--red)';this.style.color='var(--red)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">✕ Limpiar</button>
+        </div>
       </div>
+
+      <!-- Results count -->
+      <div style="font-family:var(--font-mono);font-size:11px;color:var(--text3);margin-bottom:12px" id="prodHistorialCount"></div>
+
       <div id="prodHistorialList"></div>
     </div>
   </div>
@@ -858,11 +1117,11 @@ function populateAdminResponsableSelect() {
 }
 function openAddAdminResponsable() {
   document.getElementById('adminRespInput').value = '';
-  document.getElementById('adminRespOverlay').classList.add('open');
+  (document.getElementById('adminRespOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   setTimeout(() => document.getElementById('adminRespInput').focus(), 100);
 }
 function closeAddAdminResponsable() {
-  document.getElementById('adminRespOverlay').classList.remove('open');
+  (document.getElementById('adminRespOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
 function confirmAddAdminResponsable() {
   const nombre = document.getElementById('adminRespInput').value.trim();
@@ -927,10 +1186,11 @@ function getNextCodigo() {
 const ADMIN_PASS = 'chem2024';
 
 // ════════ LOGIN ════════
-document.getElementById('loginMode').addEventListener('change', function() {
+document.addEventListener('DOMContentLoaded', function() { document.getElementById('loginMode').addEventListener('change', function() {
   document.getElementById('passField').style.display = this.value === 'admin' ? 'block' : 'none';
   document.getElementById('loginError').style.display = 'none';
 });
+}); // DOMContentLoaded
 
 function doLogin() {
   const mode = document.getElementById('loginMode').value;
@@ -948,17 +1208,18 @@ function doLogin() {
     openProduccionPanel();
     return;
   }
+
   state.mode = mode;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   const modeLabels = { admin:' · ADMIN', user:' · USUARIO' };
   const modeBadgeText = { admin:'ADMIN', user:'USUARIO' };
-  document.getElementById('topMode').textContent = modeLabels[mode]||'';
-  document.getElementById('modeBadge').textContent = modeBadgeText[mode]||mode.toUpperCase();
+  (document.getElementById('topMode')||{}).textContent = modeLabels[mode]||'';
+  (document.getElementById('modeBadge')||{}).textContent = modeBadgeText[mode]||mode.toUpperCase();
   document.getElementById('modeBadge').className = 'mode-badge ' + (mode === 'admin' ? 'mode-admin' : 'mode-user');
-  document.getElementById('pageSubtitle').textContent = mode === 'admin' ? 'Gestión completa de fórmulas' : 'Consulta y ajuste de producción';
-  document.getElementById('btnNewProd').style.display = mode === 'admin' ? 'flex' : 'none';
-  document.getElementById('btnMarcas').style.display = mode === 'admin' ? 'inline-flex' : 'none';
+  (document.getElementById('pageSubtitle')||{}).textContent = mode === 'admin' ? 'Gestión completa de fórmulas' : 'Consulta y ajuste de producción';
+  (document.getElementById('btnNewProd')||{style:{}}).style.display = mode === 'admin' ? 'flex' : 'none';
+  (document.getElementById('btnMarcas')||{style:{}}).style.display = mode === 'admin' ? 'inline-flex' : 'none';
   renderApp();
 }
 
@@ -976,23 +1237,26 @@ function doLogout() {
 // ════════ RENDER ════════
 function renderApp() {
   if (!state.mode) return;
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const marca = document.getElementById('filterMarca').value;
+  const searchEl = document.getElementById('searchInput');
+  const marcaEl = document.getElementById('filterMarca');
+  const grid = document.getElementById('productosGrid');
+  if (!searchEl || !marcaEl || !grid) return; // DOM not ready yet
+  const q = searchEl.value.toLowerCase();
+  const marca = marcaEl.value;
 
   // Update marca filter
   const marcas = [...new Set(state.productos.map(p => p.marca).filter(Boolean))].sort();
-  const sel = document.getElementById('filterMarca');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Todas las marcas</option>';
-  marcas.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; if(m===cur) o.selected=true; sel.appendChild(o); });
+  const cur = marcaEl.value;
+  marcaEl.innerHTML = '<option value="">Todas las marcas</option>';
+  marcas.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; if(m===cur) o.selected=true; marcaEl.appendChild(o); });
 
+  const marcaFilter = marcaEl.value;
   let prods = state.productos.filter(p => {
     const matchQ = !q || p.nombre.toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q);
-    const matchM = !marca || p.marca === marca;
+    const matchM = !marcaFilter || p.marca === marcaFilter;
     return matchQ && matchM;
   });
 
-  const grid = document.getElementById('productosGrid');
   if (!prods.length) {
     grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">🧪</div><div class="empty-txt">No se encontraron fórmulas</div></div>';
     return;
@@ -1039,15 +1303,15 @@ function openFormulaModal(id) {
 
   const imgHtml = prod.imagen ? `<img src="${prod.imagen}" alt="" onerror="this.parentNode.innerHTML='🧪'">` : '🧪';
   document.getElementById('fmImg').innerHTML = imgHtml;
-  document.getElementById('fmTitle').textContent = prod.nombre;
-  document.getElementById('fmMarca').textContent = prod.marca || '';
+  (document.getElementById('fmTitle')||{}).textContent = prod.nombre;
+  (document.getElementById('fmMarca')||{}).textContent = prod.marca || '';
   document.getElementById('litrosInput').value = 1;
   updateFormula();
-  document.getElementById('formulaOverlay').classList.add('open');
+  (document.getElementById('formulaOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
 }
 
 function closeFormulaModal() {
-  document.getElementById('formulaOverlay').classList.remove('open');
+  (document.getElementById('formulaOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
   state.currentFormula = null;
 }
 
@@ -1068,8 +1332,8 @@ function updateFormula() {
   const totalPPL = comps.reduce((s,c) => s + (parseFloat(c.ppl)||0), 0);
   const mlTotal = litros * 1000;
 
-  document.getElementById('adjInfo').textContent = totalPPL.toFixed(3) + ' PPL total';
-  document.getElementById('totalVal').textContent = mlTotal % 1 === 0 ? mlTotal.toLocaleString('es-CL') : mlTotal.toFixed(1);
+  (document.getElementById('adjInfo')||{}).textContent = totalPPL.toFixed(3) + ' PPL total';
+  (document.getElementById('totalVal')||{}).textContent = mlTotal % 1 === 0 ? mlTotal.toLocaleString('es-CL') : mlTotal.toFixed(1);
   const gTotal = mlTotal; // 1 ml ≈ 1 g
   const gTotalEl = document.getElementById('totalGrams');
   if (gTotalEl) gTotalEl.textContent = gTotal.toFixed(1) + ' g';
@@ -1142,14 +1406,15 @@ function getAllCompNames() {
 
 function openAdminModal(prod = null) {
   state.editingId = prod ? prod._id : null;
-  document.getElementById('amTitle').textContent = prod ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO';
+  (document.getElementById('amTitle')||{}).textContent = prod ? 'EDITAR PRODUCTO' : 'NUEVO PRODUCTO';
   // Show nota cambio only when editing
   const notaWrap = document.getElementById('amNotaCambioWrap');
   const btnHist = document.getElementById('btnVerHistorial');
   if (notaWrap) notaWrap.style.display = prod ? 'block' : 'none';
   if (btnHist) btnHist.style.display = prod ? 'inline-flex' : 'none';
   const notaInp = document.getElementById('amNotaCambio');
-  if (notaInp) { notaInp.value = ''; document.getElementById('amNotaCount').textContent = '0/100'; }
+  if (notaInp) { notaInp.value = ''; }
+  const notaCount = document.getElementById('amNotaCount'); if (notaCount) notaCount.textContent = '0/100';
   populateAdminResponsableSelect();
   document.getElementById('amNombre').value = prod ? prod.nombre : '';
   populateMarcaSelect();
@@ -1162,11 +1427,11 @@ function openAdminModal(prod = null) {
   renderCompRows();
   updatePPLBar();
   updateCostSummary();
-  document.getElementById('adminOverlay').classList.add('open');
+  (document.getElementById('adminOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
 }
 
 function closeAdminModal() {
-  document.getElementById('adminOverlay').classList.remove('open');
+  (document.getElementById('adminOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
   compRows = [];
   state.editingId = null;
   // Close any open autocomplete
@@ -1307,7 +1572,7 @@ function handleImgFile(input) {
     const base64 = e.target.result;
     document.getElementById('amImagen').value = base64;
     document.getElementById('imgPreview').innerHTML = '<img src="' + base64 + '" style="width:100%;height:100%;object-fit:cover">';
-    document.getElementById('uploadFileName').textContent = file.name;
+    (document.getElementById('uploadFileName')||{}).textContent = file.name;
     document.getElementById('uploadLabel').style.borderColor = 'var(--green)';
   };
   reader.readAsDataURL(file);
@@ -1323,7 +1588,7 @@ function previewImg() {
   imgEl.onerror = () => { prev.innerHTML = '&#129514;'; };
   prev.innerHTML = ''; prev.appendChild(imgEl);
   if (val.startsWith('data:')) {
-    document.getElementById('uploadFileName').textContent = 'Imagen cargada';
+    (document.getElementById('uploadFileName')||{}).textContent = 'Imagen cargada';
     document.getElementById('uploadLabel').style.borderColor = 'var(--green)';
   }
 }
@@ -1445,13 +1710,13 @@ function editProducto(id) {
 
 function openHistorial() {
   const prod = state.productos.find(p => p._id === state.editingId);
-  document.getElementById('historialSubtitle').textContent = prod ? prod.nombre : '';
-  document.getElementById('historialOverlay').classList.add('open');
+  (document.getElementById('historialSubtitle')||{}).textContent = prod ? prod.nombre : '';
+  (document.getElementById('historialOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   loadHistorial(state.editingId);
 }
 
 function closeHistorial() {
-  document.getElementById('historialOverlay').classList.remove('open');
+  (document.getElementById('historialOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
 
 function loadHistorial(productoId) {
@@ -1522,12 +1787,12 @@ function renderMarcasList() {
 
 function openMarcasPanel() {
   renderMarcasList();
-  document.getElementById('marcasOverlay').classList.add('open');
+  (document.getElementById('marcasOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   document.getElementById('newMarcaInput').value = '';
 }
 
 function closeMarcasPanel() {
-  document.getElementById('marcasOverlay').classList.remove('open');
+  (document.getElementById('marcasOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
 
 function addMarca() {
@@ -1574,12 +1839,12 @@ function removeMarca(id, nombre) {
 
 function openMarcaQuickAdd() {
   document.getElementById('marcaQuickInput').value = '';
-  document.getElementById('marcaQuickOverlay').classList.add('open');
+  (document.getElementById('marcaQuickOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   setTimeout(() => document.getElementById('marcaQuickInput').focus(), 100);
 }
 
 function closeMarcaQuickAdd() {
-  document.getElementById('marcaQuickOverlay').classList.remove('open');
+  (document.getElementById('marcaQuickOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
 
 function confirmMarcaQuickAdd() {
@@ -1621,7 +1886,7 @@ function copiarProducto(id) {
   const copyName = prod.nombre + ' (copia)';
   document.getElementById('copyNombre').value = copyName;
   document.getElementById('copyError').style.display = 'none';
-  document.getElementById('copyOverlay').classList.add('open');
+  (document.getElementById('copyOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   setTimeout(() => {
     const inp = document.getElementById('copyNombre');
     inp.focus(); inp.select();
@@ -1629,7 +1894,7 @@ function copiarProducto(id) {
 }
 
 function closeCopyModal() {
-  document.getElementById('copyOverlay').classList.remove('open');
+  (document.getElementById('copyOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
   _copySourceId = null;
 }
 
@@ -1675,12 +1940,12 @@ function confirmCopy() {
 // ════════ CONFIRM ════════
 function confirmarEliminar(id) {
   const prod = state.productos.find(p => p._id === id);
-  document.getElementById('confirmMsg').textContent = `¿Eliminar "${prod?.nombre}"? Esta acción no se puede deshacer.`;
+  (document.getElementById('confirmMsg')||{}).textContent = `¿Eliminar "${prod?.nombre}"? Esta acción no se puede deshacer.`;
   state.pendingConfirm = id;
-  document.getElementById('confirmOverlay').classList.add('open');
+  (document.getElementById('confirmOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
 }
 function closeConfirm() {
-  document.getElementById('confirmOverlay').classList.remove('open');
+  (document.getElementById('confirmOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
   state.pendingConfirm = null;
 }
 function confirmOk() {
@@ -1698,9 +1963,10 @@ function confirmOk() {
 
 // ════════ UTILS ════════
 function showLoader(v) {
-  document.getElementById('loader').style.display = v ? 'flex' : 'none';
+  const el = document.getElementById('loader');
+  if (!el) return;
+  el.style.display = v ? 'flex' : 'none';
   if (v) {
-    // Safety: auto-hide after 8 seconds to prevent getting stuck
     clearTimeout(window._loaderTimeout);
     window._loaderTimeout = setTimeout(() => showLoader(false), 8000);
   } else {
@@ -1710,6 +1976,7 @@ function showLoader(v) {
 
 function showToast(msg, err=false) {
   const c = document.getElementById('toast');
+  if (!c) return;
   const el = document.createElement('div');
   el.className = 'toast-item ' + (err ? 'err' : 'ok');
   el.textContent = (err ? '✕ ' : '✓ ') + msg;
@@ -1724,11 +1991,13 @@ function showToast(msg, err=false) {
 
 let prodClockInterval = null;
 
-function openProduccionPanel() {
+function openProduccionPanel(tab) {
   document.getElementById('produccionPanel').style.display = 'block';
+
+
   initProdForm();
   startProdClock();
-  switchProdTab('nuevo');
+  switchProdTab(tab || 'nuevo');
 }
 
 function startProdClock() {
@@ -1754,7 +2023,6 @@ function initProdForm() {
   // Reset fields
   document.getElementById('prod-litros').value = '';
   document.getElementById('prod-obs').value = '';
-  document.getElementById('prodInfoBox').style.display = 'none';
   // Populate producto select
   const sel = document.getElementById('prod-producto');
   const cur = sel.value;
@@ -1780,11 +2048,13 @@ function initProdForm() {
   // Prod historial filter
   const sf = document.getElementById('prod-filter-prod');
   if (sf) {
+    const curSf = sf.value;
     sf.innerHTML = '<option value="">Todos los productos</option>';
     [...state.productos].sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach(p => {
       const o = document.createElement('option'); o.value = p._id;
       o.textContent = p.nombre; sf.appendChild(o);
     });
+    if (curSf) sf.value = curSf;
   }
   renderProdHistorial();
 }
@@ -1801,25 +2071,7 @@ function populateResponsableSelect() {
   if (cur) sel.value = cur;
 }
 
-function updateProdInfo() {
-  const prodId = document.getElementById('prod-producto').value;
-  const litros = parseFloat(document.getElementById('prod-litros').value) || 0;
-  const box = document.getElementById('prodInfoBox');
-  const ing = document.getElementById('prodIngredientes');
-  if (!prodId || litros <= 0) { box.style.display = 'none'; return; }
-  const prod = state.productos.find(p => p._id === prodId);
-  if (!prod) { box.style.display = 'none'; return; }
-  const comps = prod.componentes || [];
-  const totalPPL = comps.reduce((s,c) => s + (c.ppl||0), 0);
-  const mlTotal = litros * 1000;
-  ing.innerHTML = comps.map(c => {
-    const ml = totalPPL > 0 ? (c.ppl/totalPPL)*mlTotal : c.ppl*mlTotal;
-    const str = ml >= 1000 ? (ml/1000).toFixed(2)+'L' : ml.toFixed(0)+'ml';
-    return '<span style="background:var(--bg2);border:1px solid var(--border2);border-radius:2px;padding:4px 10px;font-family:var(--font-mono);font-size:11px;color:var(--text2)">' +
-      '<span style="color:var(--text)">' + c.nombre + '</span> · <span style="color:var(--green)">' + str + '</span></span>';
-  }).join('');
-  box.style.display = 'block';
-}
+
 
 function registrarProduccion() {
   const prodId = document.getElementById('prod-producto').value;
@@ -1842,7 +2094,7 @@ function registrarProduccion() {
     productomarca: prod ? prod.marca : '—',
     litros,
     responsable,
-    fecha: document.getElementById('prod-fecha').value,
+    fecha: (document.getElementById('prod-fecha')||{value:''}).value,
     hora: pad(now.getHours()) + ':' + pad(now.getMinutes()),
     timestamp: now.getTime(),
     obs
@@ -1857,11 +2109,34 @@ function registrarProduccion() {
   switchProdTab('historial');
 }
 
+function clearProdFiltros() {
+  ['prod-search','prod-filter-prod','prod-filter-resp','prod-filter-desde','prod-filter-hasta'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  renderProdHistorial();
+}
+
 function renderProdHistorial() {
   const c = document.getElementById('prodHistorialList');
   if (!c) return;
-  const q = (document.getElementById('prod-search')||{value:''}).value.toLowerCase();
-  const fProd = (document.getElementById('prod-filter-prod')||{value:''}).value;
+  const g = v => (document.getElementById(v)||{value:''}).value;
+  const q     = g('prod-search').toLowerCase();
+  const fProd = g('prod-filter-prod');
+  const fResp = g('prod-filter-resp');
+  const desde = g('prod-filter-desde');
+  const hasta = g('prod-filter-hasta');
+
+  // Populate responsable filter dynamically
+  const respSel = document.getElementById('prod-filter-resp');
+  if (respSel) {
+    const curResp = respSel.value;
+    const allResp = [...new Set(getProduccionList().map(r => r.responsable).filter(Boolean))].sort();
+    respSel.innerHTML = '<option value="">Todos</option>';
+    allResp.forEach(r => { const o = document.createElement('option'); o.value = r; o.textContent = r; respSel.appendChild(o); });
+    if (curResp) respSel.value = curResp;
+  }
+
   let list = getProduccionList().sort((a,b) => (b.timestamp||0)-(a.timestamp||0));
   if (q) list = list.filter(r =>
     (r.codigo||'').toLowerCase().includes(q) ||
@@ -1869,8 +2144,15 @@ function renderProdHistorial() {
     (r.responsable||'').toLowerCase().includes(q)
   );
   if (fProd) list = list.filter(r => r.productoId === fProd);
+  if (fResp) list = list.filter(r => r.responsable === fResp);
+  if (desde) list = list.filter(r => r.fecha >= desde);
+  if (hasta) list = list.filter(r => r.fecha <= hasta);
+
+  const countEl = document.getElementById('prodHistorialCount');
+  if (countEl) countEl.textContent = list.length + ' registro(s) encontrado(s)';
+
   if (!list.length) {
-    c.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text3);font-family:var(--font-mono);font-size:13px">Sin registros de producción aún</div>';
+    c.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text3);font-family:var(--font-mono);font-size:13px">Sin registros que coincidan con los filtros</div>';
     return;
   }
   c.innerHTML = list.map(r => {
@@ -1883,12 +2165,42 @@ function renderProdHistorial() {
         '<div class="prod-meta">' +
           '<span class="prod-meta-item">📅 <span>' + r.fecha + ' ' + r.hora + '</span></span>' +
           '<span class="prod-meta-item">👤 <span>' + r.responsable + '</span></span>' +
+          '<button class="btn-danger btn-sm del-prod-reg" data-id="' + r.id + '" style="font-size:11px;padding:4px 10px;margin-left:8px">✕ Eliminar</button>' +
         '</div>' +
       '</div>' +
       '<div class="prod-producto-name">' + r.productoNombre + ' <span style="color:var(--text3);font-size:12px;font-weight:400">· ' + (r.productomarca||'') + '</span></div>' +
       (r.obs ? '<div class="prod-obs">💬 ' + r.obs + '</div>' : '') +
     '</div>';
   }).join('');
+}
+
+function eliminarProdRegistro(id) {
+  // Require admin password before deleting
+  state._pendingDeleteProdId = id;
+  document.getElementById('prodDeletePassInput').value = '';
+  document.getElementById('prodDeletePassError').style.display = 'none';
+  document.getElementById('prodDeletePassOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('prodDeletePassInput').focus(), 100);
+}
+function confirmDeleteProdRegistro() {
+  const pass = document.getElementById('prodDeletePassInput').value;
+  if (pass !== ADMIN_PASS) {
+    document.getElementById('prodDeletePassError').style.display = 'block';
+    document.getElementById('prodDeletePassInput').value = '';
+    document.getElementById('prodDeletePassInput').focus();
+    return;
+  }
+  const id = state._pendingDeleteProdId;
+  const list = getProduccionList().filter(r => r.id !== id);
+  saveProduccionList(list);
+  document.getElementById('prodDeletePassOverlay').classList.remove('open');
+  state._pendingDeleteProdId = null;
+  renderProdHistorial();
+  showToast('Registro eliminado');
+}
+function closeProdDeletePass() {
+  document.getElementById('prodDeletePassOverlay').classList.remove('open');
+  state._pendingDeleteProdId = null;
 }
 
 function switchProdTab(tab) {
@@ -1916,11 +2228,11 @@ function switchProdTab(tab) {
 // ── Responsables ──
 function openAddResponsable() {
   document.getElementById('responsableInput').value = '';
-  document.getElementById('responsableOverlay').classList.add('open');
+  (document.getElementById('responsableOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   setTimeout(() => document.getElementById('responsableInput').focus(), 100);
 }
 function closeAddResponsable() {
-  document.getElementById('responsableOverlay').classList.remove('open');
+  (document.getElementById('responsableOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
 function confirmAddResponsable() {
   const nombre = document.getElementById('responsableInput').value.trim();
@@ -1939,6 +2251,10 @@ function confirmAddResponsable() {
 // Close overlays on backdrop click
 // Use document-level click delegation for all overlays (handles dynamically added elements)
 document.addEventListener('click', function(e) {
+  // Delete prod registro delegation
+  const delProd = e.target.closest('.del-prod-reg');
+  if (delProd) { eliminarProdRegistro(delProd.dataset.id); return; }
+
   const overlayHandlers = {
     adminRespOverlay:  closeAddAdminResponsable,
     formulaOverlay:    closeFormulaModal,
@@ -1949,11 +2265,29 @@ document.addEventListener('click', function(e) {
     marcaQuickOverlay: closeMarcaQuickAdd,
     historialOverlay:  closeHistorial,
     responsableOverlay:closeAddResponsable,
+    prodDeletePassOverlay: closeProdDeletePass,
   };
   const handler = overlayHandlers[e.target.id];
   if (handler) handler();
 });
 
 </script>
+
+<!-- PROD DELETE PASS MODAL -->
+<div class="overlay" id="prodDeletePassOverlay">
+  <div class="confirm-modal" style="width:380px">
+    <div class="confirm-title" style="color:var(--red)">⚠ Eliminar Registro</div>
+    <div class="confirm-msg">Ingresa la clave de administrador para eliminar este registro de producción.</div>
+    <input type="password" id="prodDeletePassInput" placeholder="Contraseña admin"
+      style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:2px;color:var(--text);padding:10px 14px;font-family:var(--font-mono);font-size:13px;outline:none;margin-bottom:8px"
+      onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border2)'"
+      onkeydown="if(event.key==='Enter')confirmDeleteProdRegistro()">
+    <div id="prodDeletePassError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-bottom:16px;display:none">Contraseña incorrecta</div>
+    <div class="confirm-actions">
+      <button class="btn-secondary" onclick="closeProdDeletePass()">Cancelar</button>
+      <button class="btn-secondary" style="border-color:rgba(255,71,87,0.4);color:var(--red)" onclick="confirmDeleteProdRegistro()">Eliminar</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
