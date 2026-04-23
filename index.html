@@ -41,17 +41,32 @@ async function loadAll() {
 }
 
 window.fbGuardarProducto = async function(prod) {
-  const ref = await addDoc(collection(db, 'quimicos_productos'), prod);
-  prod._id = ref.id;
-  state.productos.push(prod);
+  const clean = JSON.parse(JSON.stringify(prod, (k,v) => v === undefined ? null : v));
+  const ref = await addDoc(collection(db, 'quimicos_productos'), clean);
+  return ref.id;
 };
 
 window.fbEliminarProducto = async function(id) {
   await deleteDoc(doc(db, 'quimicos_productos', id));
+  state.productos = state.productos.filter(p => p._id !== id);
 };
 
 window.fbActualizarProducto = async function(id, data) {
-  await setDoc(doc(db, 'quimicos_productos', id), data, { merge: true });
+  const clean = JSON.parse(JSON.stringify(data, (k,v) => v === undefined ? null : v));
+  await setDoc(doc(db, 'quimicos_productos', id), clean);
+};
+
+// ── HISTORIAL Firebase ──
+window.fbGuardarCambio = async function(cambio) {
+  const clean = JSON.parse(JSON.stringify(cambio, (k,v) => v === undefined ? null : v));
+  const ref = await addDoc(collection(db, 'quimicos_historial'), clean);
+  return ref.id;
+};
+window.fbGetHistorial = async function(productoId) {
+  const snap = await getDocs(collection(db, 'quimicos_historial'));
+  return snap.docs.map(d => ({ _id: d.id, ...d.data() }))
+    .filter(c => c.productoId === productoId)
+    .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
 };
 
 // ── HISTORIAL: ver script principal ──
@@ -62,6 +77,31 @@ window.fbAddMarca = async function(nombre) {
 };
 window.fbRemoveMarca = async function(id) {
   await deleteDoc(doc(db, 'quimicos_marcas', id));
+};
+
+// ── PRODUCCIÓN ──
+window.fbGuardarProduccion = async function(registro) {
+  const clean = JSON.parse(JSON.stringify(registro, (k,v) => v === undefined ? null : v));
+  const ref = await addDoc(collection(db, 'quimicos_produccion'), clean);
+  return ref.id;
+};
+window.fbGetProduccion = async function() {
+  const snap = await getDocs(collection(db, 'quimicos_produccion'));
+  return snap.docs.map(d => ({ ...d.data(), _fbId: d.id }))
+    .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+};
+window.fbEliminarProduccion = async function(fbId) {
+  await deleteDoc(doc(db, 'quimicos_produccion', fbId));
+};
+
+// ── RESPONSABLES ──
+window.fbGetResponsables = async function(tipo) {
+  const snap = await getDocs(collection(db, 'quimicos_responsables'));
+  return snap.docs.map(d => ({ _id: d.id, ...d.data() })).filter(r => r.tipo === tipo).map(r => r.nombre);
+};
+window.fbAddResponsable = async function(nombre, tipo) {
+  const ref = await addDoc(collection(db, 'quimicos_responsables'), { nombre, tipo });
+  return ref.id;
 };
 
 if (document.readyState === 'loading') {
@@ -1173,12 +1213,32 @@ const state = {
 function getProduccionKey() { return 'chem_produccion'; }
 function getResponsablesKey() { return 'chem_responsables'; }
 
+let _prodCache = null;
+
+async function loadProdCache() {
+  try {
+    if (window.fbGetProduccion) {
+      _prodCache = await window.fbGetProduccion();
+      localStorage.setItem(getProduccionKey(), JSON.stringify(_prodCache));
+    } else {
+      _prodCache = JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
+    }
+  } catch(e) {
+    console.error('Error cargando producción:', e);
+    _prodCache = JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
+  }
+  return _prodCache;
+}
+
 function getProduccionList() {
+  if (_prodCache !== null) return _prodCache;
   return JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
 }
 function saveProduccionList(list) {
+  _prodCache = list;
   localStorage.setItem(getProduccionKey(), JSON.stringify(list));
 }
+
 function getResponsables() {
   return JSON.parse(localStorage.getItem(getResponsablesKey()) || '[]');
 }
@@ -1723,15 +1783,17 @@ function guardarProducto() {
     }
   } else {
     if (window.fbGuardarProducto) {
-      window.fbGuardarProducto(prod).then(() => {
+      window.fbGuardarProducto(prod).then(fbId => {
+        prod._id = fbId;
+        state.productos.push(prod);
         showLoader(false); closeAdminModal(); renderApp();
         showToast('Producto guardado');
-      }).catch(() => { showLoader(false); showToast('Error al guardar', true); });
+      }).catch(e => { showLoader(false); showToast('Error al guardar: ' + (e.code||e.message||''), true); });
     } else {
       prod._id = Date.now().toString();
       state.productos.push(prod);
       showLoader(false); closeAdminModal(); renderApp();
-      showToast('Producto guardado');
+      showToast('Producto guardado (sin conexión)');
     }
   }
 }
@@ -1754,10 +1816,18 @@ function closeHistorial() {
   (document.getElementById('historialOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
 
-function loadHistorial(productoId) {
+async function loadHistorial(productoId) {
   const c = document.getElementById('historialContent');
+  c.innerHTML = '<div style="text-align:center;color:var(--text3);font-family:var(--font-mono);font-size:12px;padding:30px">Cargando...</div>';
   try {
-    const entries = getHistorialLocal(productoId);
+    let entries = [];
+    if (window.fbGetHistorial) {
+      try { entries = await window.fbGetHistorial(productoId); } catch(e) { entries = getHistorialLocal(productoId); }
+    } else {
+      entries = getHistorialLocal(productoId);
+    }
+    const c2 = document.getElementById('historialContent');
+    const c = c2;
     if (!entries.length) {
       c.innerHTML = '<div style="text-align:center;color:var(--text3);font-family:var(--font-mono);font-size:13px;padding:40px">Sin cambios registrados aún.<br><br>Los cambios se registran automáticamente al guardar ediciones.</div>';
       return;
@@ -2032,7 +2102,8 @@ function openProduccionPanel(tab) {
 
   initProdForm();
   startProdClock();
-  switchProdTab(tab || 'nuevo');
+  // Wait for loadProdCache to call initProdForm
+  setTimeout(() => switchProdTab(tab || 'nuevo'), 50);
 }
 
 function startProdClock() {
@@ -2069,7 +2140,15 @@ function initProdForm() {
   });
   if (cur) sel.value = cur;
   // Populate responsable
-  populateResponsableSelect();
+  if (window.fbGetResponsables) {
+    window.fbGetResponsables('prod').then(nombres => {
+      if (nombres.length) { localStorage.setItem('chem_responsables', JSON.stringify(nombres)); }
+      populateResponsableSelect();
+      if (state.responsable) { const el = document.getElementById('prod-responsable'); if(el) el.value = state.responsable; }
+    }).catch(() => populateResponsableSelect());
+  } else {
+    populateResponsableSelect();
+  }
   // Pre-select logged user if in responsable list
   const resp = getResponsables();
   const match = resp.find(r => r.toLowerCase() === state.responsable.toLowerCase());
@@ -2135,13 +2214,31 @@ function registrarProduccion() {
     obs
   };
 
-  const list = getProduccionList();
-  list.push(registro);
-  saveProduccionList(list);
-
-  showToast('✓ Lote ' + registro.codigo + ' registrado');
-  initProdForm(); // reset with next codigo
-  switchProdTab('historial');
+  if (window.fbGuardarProduccion) {
+    showLoader(true);
+    window.fbGuardarProduccion(registro).then(fbId => {
+      registro._fbId = fbId;
+      const list = getProduccionList();
+      list.unshift(registro);
+      saveProduccionList(list);
+      showLoader(false);
+      showToast('✓ Lote ' + registro.codigo + ' registrado');
+      initProdForm();
+      switchProdTab('historial');
+      renderProdHistorial();
+    }).catch(e => {
+      showLoader(false);
+      showToast('Error al guardar: ' + (e.message||''), true);
+    });
+  } else {
+    const list = getProduccionList();
+    list.unshift(registro);
+    saveProduccionList(list);
+    showToast('✓ Lote ' + registro.codigo + ' registrado');
+    initProdForm();
+    switchProdTab('historial');
+    renderProdHistorial();
+  }
 }
 
 function clearProdFiltros() {
@@ -2279,6 +2376,7 @@ function confirmAddResponsable() {
   if (!list.includes(nombre)) {
     list.push(nombre);
     saveResponsables(list);
+    if (window.fbAddResponsable) window.fbAddResponsable(nombre, 'prod').catch(e => console.error(e));
   }
   populateResponsableSelect();
   document.getElementById('prod-responsable').value = nombre;
