@@ -94,6 +94,20 @@ window.fbEliminarProduccion = async function(fbId) {
   await deleteDoc(doc(db, 'quimicos_produccion', fbId));
 };
 
+// Busca por codigo+timestamp cuando no hay _fbId
+window.fbBuscarYEliminarProduccion = async function(registro) {
+  const snap = await getDocs(collection(db, 'quimicos_produccion'));
+  const matches = snap.docs.filter(d => {
+    const data = d.data();
+    return data.codigo === registro.codigo && data.timestamp === registro.timestamp;
+  });
+  for (const d of matches) {
+    await deleteDoc(doc(db, 'quimicos_produccion', d.id));
+    console.log('[Delete] Eliminado por codigo+timestamp:', d.id);
+  }
+  return matches.length;
+};
+
 // ── RESPONSABLES ──
 window.fbGetResponsables = async function(tipo) {
   const snap = await getDocs(collection(db, 'quimicos_responsables'));
@@ -2355,12 +2369,24 @@ function confirmDeleteProdRegistro() {
     state._pendingDeleteProdId = null;
     renderProdHistorial();
     showToast('Registro eliminado');
+    // Reload from Firebase after 1s to confirm sync
+    setTimeout(() => {
+      if (window.fbGetProduccion) {
+        window.fbGetProduccion().then(list => {
+          _prodCache = list;
+          localStorage.setItem(getProduccionKey(), JSON.stringify(list));
+          renderProdHistorial();
+        }).catch(()=>{});
+      }
+    }, 1200);
     // Delete from Firebase
     if (reg && reg._fbId && window.fbEliminarProduccion) {
       window.fbEliminarProduccion(reg._fbId).catch(e => console.error('[Delete] Error Firebase:', e));
-    } else if (reg && window.fbEliminarProduccion) {
-      // Try to find by matching fields if _fbId missing
-      console.warn('[Delete] Sin _fbId para registro:', id);
+    } else if (reg && window.fbBuscarYEliminarProduccion) {
+      // No _fbId — search by codigo+timestamp
+      window.fbBuscarYEliminarProduccion(reg)
+        .then(n => { if(!n) console.warn('[Delete] No encontrado en Firebase:', reg.codigo); })
+        .catch(e => console.error('[Delete] Error búsqueda:', e));
     }
   });
   return; // async
