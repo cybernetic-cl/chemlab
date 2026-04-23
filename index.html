@@ -1222,6 +1222,8 @@ async function loadProdCache() {
       _prodCache = await window.fbGetProduccion();
       console.log('[Prod] Cargados:', _prodCache.length, 'registros');
       localStorage.setItem(getProduccionKey(), JSON.stringify(_prodCache));
+      // Update max codigo from Firebase data
+      _prodCache.forEach(p => reserveCodigoMax(p.codigo));
     } catch(e) {
       console.error('[Prod] Error Firebase, usando localStorage:', e);
       _prodCache = JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
@@ -1249,11 +1251,22 @@ function saveResponsables(list) {
   localStorage.setItem(getResponsablesKey(), JSON.stringify(list));
 }
 function getNextCodigo() {
-  const list = getProduccionList();
-  if (!list.length) return 'L001000';
-  const nums = list.map(p => parseInt((p.codigo||'L000000').slice(1))||0);
-  const next = Math.max(...nums) + 1;
+  // Use max from localStorage so deletes don't reset the counter
+  const stored = parseInt(localStorage.getItem('chem_max_codigo') || '0');
+  const fromList = getProduccionList().reduce((max, p) => {
+    const n = parseInt((p.codigo||'L000000').slice(1))||0;
+    return Math.max(max, n);
+  }, 0);
+  const current = Math.max(stored, fromList);
+  const next = current + 1;
+  localStorage.setItem('chem_max_codigo', next);
   return 'L' + String(next).padStart(6,'0');
+}
+
+function reserveCodigoMax(codigo) {
+  const n = parseInt((codigo||'L000000').slice(1))||0;
+  const stored = parseInt(localStorage.getItem('chem_max_codigo') || '0');
+  if (n > stored) localStorage.setItem('chem_max_codigo', n);
 }
 const ADMIN_PASS_HASH = '0e1db2979be2947b6ac7ac3f6275a70c346c49ff3593eff7b2a8dbf0210b7d4f'; // SHA-256
 
@@ -2224,6 +2237,7 @@ function registrarProduccion() {
 
   if (window.fbGuardarProduccion) {
     showLoader(true);
+    reserveCodigoMax(registro.codigo); // ensure max is always advancing
     window.fbGuardarProduccion(registro).then(fbId => {
       registro._fbId = fbId;
       const list = getProduccionList();
@@ -2239,6 +2253,7 @@ function registrarProduccion() {
       showToast('Error al guardar: ' + (e.message||''), true);
     });
   } else {
+    reserveCodigoMax(registro.codigo);
     const list = getProduccionList();
     list.unshift(registro);
     saveProduccionList(list);
@@ -2332,12 +2347,21 @@ function confirmDeleteProdRegistro() {
       return;
     }
     const id = state._pendingDeleteProdId;
-    const list = getProduccionList().filter(r => r.id !== id);
-    saveProduccionList(list);
+    const reg = getProduccionList().find(r => r.id === id);
+    // Remove from cache immediately
+    const newList = getProduccionList().filter(r => r.id !== id);
+    saveProduccionList(newList);
     document.getElementById('prodDeletePassOverlay').classList.remove('open');
     state._pendingDeleteProdId = null;
     renderProdHistorial();
     showToast('Registro eliminado');
+    // Delete from Firebase
+    if (reg && reg._fbId && window.fbEliminarProduccion) {
+      window.fbEliminarProduccion(reg._fbId).catch(e => console.error('[Delete] Error Firebase:', e));
+    } else if (reg && window.fbEliminarProduccion) {
+      // Try to find by matching fields if _fbId missing
+      console.warn('[Delete] Sin _fbId para registro:', id);
+    }
   });
   return; // async
 }
