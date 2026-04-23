@@ -9,7 +9,7 @@
 <!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDXK3wHjTiw6HULGbAEABxr2g83fIwf2Qk",
@@ -94,16 +94,29 @@ window.fbEliminarProduccion = async function(fbId) {
   await deleteDoc(doc(db, 'quimicos_produccion', fbId));
 };
 
-// Busca por codigo+timestamp cuando no hay _fbId
+window.fbGetNextCodigo = async function() {
+  const ref = doc(db, 'quimicos_config', 'produccion_counter');
+  const snap = await getDoc(ref);
+  const current = snap.exists() ? (snap.data().ultimo || 999) : 999;
+  const next = current + 1;
+  await setDoc(ref, { ultimo: next });
+  return 'L' + String(next).padStart(6, '0');
+};
+
+// Busca por codigo cuando no hay _fbId
 window.fbBuscarYEliminarProduccion = async function(registro) {
   const snap = await getDocs(collection(db, 'quimicos_produccion'));
+  // Match by codigo (unique enough) or by local id field
   const matches = snap.docs.filter(d => {
     const data = d.data();
-    return data.codigo === registro.codigo && data.timestamp === registro.timestamp;
+    return data.codigo === registro.codigo
+      || data.id === registro.id
+      || (data.timestamp === registro.timestamp && registro.timestamp);
   });
+  console.log('[Delete] Buscando en Firebase...', registro.codigo, '→', matches.length, 'encontrados');
   for (const d of matches) {
     await deleteDoc(doc(db, 'quimicos_produccion', d.id));
-    console.log('[Delete] Eliminado por codigo+timestamp:', d.id);
+    console.log('[Delete] Eliminado doc:', d.id);
   }
   return matches.length;
 };
@@ -1264,15 +1277,14 @@ function getResponsables() {
 function saveResponsables(list) {
   localStorage.setItem(getResponsablesKey(), JSON.stringify(list));
 }
-function getNextCodigo() {
-  // Use max from localStorage so deletes don't reset the counter
+function getNextCodigoLocal() {
+  // Fallback local only when Firebase not available
   const stored = parseInt(localStorage.getItem('chem_max_codigo') || '0');
   const fromList = getProduccionList().reduce((max, p) => {
     const n = parseInt((p.codigo||'L000000').slice(1))||0;
     return Math.max(max, n);
   }, 0);
-  const current = Math.max(stored, fromList);
-  const next = current + 1;
+  const next = Math.max(stored, fromList) + 1;
   localStorage.setItem('chem_max_codigo', next);
   return 'L' + String(next).padStart(6,'0');
 }
@@ -1281,6 +1293,20 @@ function reserveCodigoMax(codigo) {
   const n = parseInt((codigo||'L000000').slice(1))||0;
   const stored = parseInt(localStorage.getItem('chem_max_codigo') || '0');
   if (n > stored) localStorage.setItem('chem_max_codigo', n);
+}
+
+// Async — loads code from Firebase counter
+async function getNextCodigo() {
+  if (window.fbGetNextCodigo) {
+    try {
+      const codigo = await window.fbGetNextCodigo();
+      reserveCodigoMax(codigo);
+      return codigo;
+    } catch(e) {
+      console.error('[Codigo] Error Firebase, usando local:', e);
+    }
+  }
+  return getNextCodigoLocal();
 }
 const ADMIN_PASS_HASH = '0e1db2979be2947b6ac7ac3f6275a70c346c49ff3593eff7b2a8dbf0210b7d4f'; // SHA-256
 
@@ -2160,7 +2186,11 @@ function updateProdClock() {
 
 function initProdForm() {
   // Codigo
-  document.getElementById('prod-codigo').value = getNextCodigo();
+  document.getElementById('prod-codigo').value = '...';
+  getNextCodigo().then(c => {
+    const el = document.getElementById('prod-codigo');
+    if (el) el.value = c;
+  });
   // Reset fields
   document.getElementById('prod-litros').value = '';
   document.getElementById('prod-obs').value = '';
@@ -2369,16 +2399,19 @@ function confirmDeleteProdRegistro() {
     state._pendingDeleteProdId = null;
     renderProdHistorial();
     showToast('Registro eliminado');
-    // Reload from Firebase after 1s to confirm sync
-    setTimeout(() => {
+    // Reload from Firebase immediately and again after 2s
+    const doReload = () => {
       if (window.fbGetProduccion) {
         window.fbGetProduccion().then(list => {
           _prodCache = list;
           localStorage.setItem(getProduccionKey(), JSON.stringify(list));
+          list.forEach(p => reserveCodigoMax(p.codigo));
           renderProdHistorial();
         }).catch(()=>{});
       }
-    }, 1200);
+    };
+    setTimeout(doReload, 500);
+    setTimeout(doReload, 2000);
     // Delete from Firebase
     if (reg && reg._fbId && window.fbEliminarProduccion) {
       window.fbEliminarProduccion(reg._fbId).catch(e => console.error('[Delete] Error Firebase:', e));
@@ -2415,7 +2448,10 @@ function switchProdTab(tab) {
   document.querySelectorAll('#produccionPanel .tab-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('prodTab-' + tab).classList.add('active');
   if (tab === 'historial') renderProdHistorial();
-  if (tab === 'nuevo') { document.getElementById('prod-codigo').value = getNextCodigo(); }
+  if (tab === 'nuevo') {
+    document.getElementById('prod-codigo').value = '...';
+    getNextCodigo().then(c => { const el = document.getElementById('prod-codigo'); if(el) el.value = c; });
+  }
 }
 
 // ── Responsables ──
