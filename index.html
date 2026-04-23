@@ -1216,15 +1216,18 @@ function getResponsablesKey() { return 'chem_responsables'; }
 let _prodCache = null;
 
 async function loadProdCache() {
-  try {
-    if (window.fbGetProduccion) {
+  if (window.fbGetProduccion) {
+    try {
+      console.log('[Prod] Cargando desde Firebase...');
       _prodCache = await window.fbGetProduccion();
+      console.log('[Prod] Cargados:', _prodCache.length, 'registros');
       localStorage.setItem(getProduccionKey(), JSON.stringify(_prodCache));
-    } else {
+    } catch(e) {
+      console.error('[Prod] Error Firebase, usando localStorage:', e);
       _prodCache = JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
     }
-  } catch(e) {
-    console.error('Error cargando producción:', e);
+  } else {
+    console.warn('[Prod] Firebase no disponible, usando localStorage');
     _prodCache = JSON.parse(localStorage.getItem(getProduccionKey()) || '[]');
   }
   return _prodCache;
@@ -2098,12 +2101,17 @@ let prodClockInterval = null;
 
 function openProduccionPanel(tab) {
   document.getElementById('produccionPanel').style.display = 'block';
-
-
-  initProdForm();
   startProdClock();
-  // Wait for loadProdCache to call initProdForm
-  setTimeout(() => switchProdTab(tab || 'nuevo'), 50);
+  showLoader(true);
+  loadProdCache().then(() => {
+    showLoader(false);
+    initProdForm();
+    switchProdTab(tab || 'nuevo');
+  }).catch(() => {
+    showLoader(false);
+    initProdForm();
+    switchProdTab(tab || 'nuevo');
+  });
 }
 
 function startProdClock() {
