@@ -438,6 +438,7 @@ body::before {
   border-radius:0 0 2px 2px; max-height:160px; overflow-y:auto;
 }
 .autocomplete-item {
+  cursor: pointer;
   padding:9px 14px; font-family:var(--font-mono); font-size:12px;
   color:var(--text2); cursor:pointer; transition:background .1s;
 }
@@ -1494,7 +1495,7 @@ function renderCompRows() {
           autocomplete="off"
           oninput="updateCompField(${i},'nombre',this.value);showAutocomplete(${i})"
           onfocus="showAutocomplete(${i})"
-          onblur="setTimeout(()=>hideAutocomplete(${i}),150)">
+          onblur="setTimeout(()=>hideAutocomplete(${i}),300)">
         <div class="autocomplete-list" id="ac-${i}" style="display:none"></div>
       </div>
       <div class="am-field" style="margin:0">
@@ -1525,7 +1526,8 @@ function showAutocomplete(i) {
   list.innerHTML = matches.slice(0,6).map(n => {
     const safeN = n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const hi = q.length > 0 ? safeN.replace(safeN.substring(safeN.toLowerCase().indexOf(q.toLowerCase()), safeN.toLowerCase().indexOf(q.toLowerCase())+q.length), '<strong style="color:var(--green)">$&</strong>') : safeN;
-    return '<div class="autocomplete-item" onmousedown="selectAutocomplete('+i+',' + JSON.stringify(n) + ')">' + hi + '</div>';
+    const safeAttr = n.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    return '<div class="autocomplete-item" data-idx="'+i+'" data-name="'+safeAttr+'" onmousedown="event.preventDefault();selectAutocompleteEl(this)">' + hi + '</div>';
   }).join('');
   list.style.display = 'block';
 }
@@ -1535,11 +1537,20 @@ function hideAutocomplete(i) {
   if (list) list.style.display = 'none';
 }
 
+function selectAutocompleteEl(el) {
+  const i = parseInt(el.dataset.idx);
+  const name = el.dataset.name;
+  selectAutocomplete(i, name);
+}
+
 function selectAutocomplete(i, name) {
   compRows[i].nombre = name;
   const input = document.getElementById('comp-nombre-' + i);
-  if (input) input.value = name;
+  if (input) { input.value = name; input.style.borderColor = 'var(--green)'; }
   hideAutocomplete(i);
+  // Auto-focus PPL field for faster data entry
+  const pplInput = document.getElementById('comp-ppl-' + i);
+  if (pplInput) { setTimeout(() => { pplInput.focus(); pplInput.select(); }, 50); }
 }
 
 function updatePPLBar() {
