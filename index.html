@@ -94,7 +94,15 @@ window.fbEliminarProduccion = async function(fbId) {
   await deleteDoc(doc(db, 'quimicos_produccion', fbId));
 };
 
-window.fbGetNextCodigo = async function() {
+// Peek: read current+1 WITHOUT incrementing (for display)
+window.fbPeekNextCodigo = async function() {
+  const ref = doc(db, 'quimicos_config', 'produccion_counter');
+  const snap = await getDoc(ref);
+  const current = snap.exists() ? (snap.data().ultimo || 999) : 999;
+  return 'L' + String(current + 1).padStart(6, '0');
+};
+// Consume: increment counter and return new code (call only when actually saving)
+window.fbConsumeNextCodigo = async function() {
   const ref = doc(db, 'quimicos_config', 'produccion_counter');
   const snap = await getDoc(ref);
   const current = snap.exists() ? (snap.data().ultimo || 999) : 999;
@@ -102,6 +110,8 @@ window.fbGetNextCodigo = async function() {
   await setDoc(ref, { ultimo: next });
   return 'L' + String(next).padStart(6, '0');
 };
+// Keep for backward compat
+window.fbGetNextCodigo = window.fbPeekNextCodigo;
 
 // Busca por codigo cuando no hay _fbId
 window.fbBuscarYEliminarProduccion = async function(registro) {
@@ -2187,10 +2197,9 @@ function updateProdClock() {
 function initProdForm() {
   // Codigo
   document.getElementById('prod-codigo').value = '...';
-  getNextCodigo().then(c => {
-    const el = document.getElementById('prod-codigo');
-    if (el) el.value = c;
-  });
+  // Peek only — don't increment counter
+  const peekFn = window.fbPeekNextCodigo || (() => Promise.resolve(getNextCodigoLocal()));
+  peekFn().then(c => { const el = document.getElementById('prod-codigo'); if (el) el.value = c; });
   // Reset fields
   document.getElementById('prod-litros').value = '';
   document.getElementById('prod-obs').value = '';
@@ -2252,7 +2261,7 @@ function populateResponsableSelect() {
 
 
 
-function registrarProduccion() {
+async function registrarProduccion() {
   const prodId = document.getElementById('prod-producto').value;
   const litros = parseFloat(document.getElementById('prod-litros').value);
   const responsable = document.getElementById('prod-responsable').value;
@@ -2265,9 +2274,15 @@ function registrarProduccion() {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Santiago' }));
   const pad = n => String(n).padStart(2,'0');
 
+  // Consume the code from Firebase (this is the real increment)
+  const codigoFinal = window.fbConsumeNextCodigo
+    ? await window.fbConsumeNextCodigo().catch(() => getNextCodigoLocal())
+    : getNextCodigoLocal();
+  reserveCodigoMax(codigoFinal);
+
   const registro = {
     id: 'p_' + Date.now(),
-    codigo: document.getElementById('prod-codigo').value,
+    codigo: codigoFinal,
     productoId: prodId,
     productoNombre: prod ? prod.nombre : '—',
     productomarca: prod ? prod.marca : '—',
@@ -2449,8 +2464,12 @@ function switchProdTab(tab) {
   document.getElementById('prodTab-' + tab).classList.add('active');
   if (tab === 'historial') renderProdHistorial();
   if (tab === 'nuevo') {
-    document.getElementById('prod-codigo').value = '...';
-    getNextCodigo().then(c => { const el = document.getElementById('prod-codigo'); if(el) el.value = c; });
+    // Don't generate new code on tab switch — only generate when form is reset
+    const el = document.getElementById('prod-codigo');
+    if (el && (!el.value || el.value === '...')) {
+      el.value = '...';
+      getNextCodigo().then(c => { if(el) el.value = c; });
+    }
   }
 }
 
