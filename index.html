@@ -1219,7 +1219,7 @@ function confirmAddAdminResponsable() {
   closeAddAdminResponsable();
 }
 
-// ════════ HISTORIAL localStorage (sin Firebase) ════════
+// ════════ HISTORIAL localStorage (deshabilitado: historial solo Firebase) ════════
 function guardarCambioLocal(cambio) {
   const clean = JSON.parse(JSON.stringify(cambio, (k,v) => v === undefined ? null : v));
   clean._id = 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
@@ -1235,6 +1235,10 @@ function getHistorialLocal(productoId) {
     .filter(c => c.productoId === productoId)
     .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
 }
+
+
+// Historial solo Firebase: elimina respaldo local antiguo para evitar registros duplicados en pantalla.
+try { localStorage.removeItem('chem_historial'); } catch(e) {}
 
 const state = {
   mode: null,
@@ -1792,9 +1796,10 @@ function guardarProducto() {
     // Build diff
     const diffs = [];
     if (original) {
-      if (original.nombre !== nombre) diffs.push({ campo:'Nombre', antes:original.nombre, despues:nombre });
-      if (original.marca !== marca) diffs.push({ campo:'Marca', antes:original.marca, despues:marca });
-      if (original.notas !== notas) diffs.push({ campo:'Notas', antes:'(modificado)', despues:'(modificado)' });
+      if ((original.nombre || '') !== nombre) diffs.push({ campo:'Nombre', antes:original.nombre || '', despues:nombre });
+      if ((original.marca || '') !== marca) diffs.push({ campo:'Marca', antes:original.marca || '', despues:marca });
+      if ((original.imagen || '') !== imagen) diffs.push({ campo:'Imagen', antes:(original.imagen ? 'Imagen anterior' : 'Sin imagen'), despues:(imagen ? 'Imagen actualizada' : 'Sin imagen') });
+      if ((original.notas || '') !== notas) diffs.push({ campo:'Notas', antes:'(modificado)', despues:'(modificado)' });
       // Compare components
       const origComps = original.componentes || [];
       componentes.forEach(nc => {
@@ -1813,36 +1818,43 @@ function guardarProducto() {
       });
     }
 
-    // Helper: save historial entry
-    const saveHistorial = () => {
-      if (diffs.length > 0) {
-        const notaCambio = (document.getElementById('amNotaCambio').value||'').trim();
-        const now = new Date();
-        const cambio = {
-          productoId: state.editingId,
-          productoNombre: nombre,
-          responsable: (document.getElementById('amResponsable').value||'').trim() || 'Sin nombre',
-          timestamp: now.getTime(),
-          fecha: now.toLocaleDateString('es-CL'),
-          hora: now.toLocaleTimeString('es-CL', {hour:'2-digit',minute:'2-digit'}),
-          nota: notaCambio,
-          diffs
-        };
-        try { guardarCambioLocal(cambio); } catch(e) { console.error("Historial error:", e); }
+    // Helper: guarda historial SOLO en Firebase
+    const saveHistorial = async () => {
+      if (diffs.length === 0) return;
+
+      const notaCambio = (document.getElementById('amNotaCambio').value || '').trim();
+      const now = new Date();
+      const cambio = {
+        productoId: state.editingId,
+        productoNombre: nombre,
+        responsable: (document.getElementById('amResponsable').value || '').trim() || 'Sin nombre',
+        timestamp: now.getTime(),
+        fecha: now.toLocaleDateString('es-CL'),
+        hora: now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
+        nota: notaCambio,
+        diffs
+      };
+
+      if (!window.fbGuardarCambio) {
+        throw new Error('Firebase no está disponible para guardar historial');
       }
+
+      const fbId = await window.fbGuardarCambio(cambio);
+      cambio._id = fbId;
+      console.log('[Historial] Cambio guardado solo en Firebase:', fbId);
     };
 
-    const afterSave = () => {
+    const afterSave = async () => {
       if (idx !== -1) state.productos[idx] = { ...prod, _id: state.editingId };
-      saveHistorial();
+      await saveHistorial();
       showLoader(false); closeAdminModal(); renderApp();
       showToast('Producto actualizado' + (diffs.length ? ' · '+diffs.length+' cambio(s)' : ''));
     };
 
     if (window.fbActualizarProducto) {
       window.fbActualizarProducto(state.editingId, prod)
-        .then(afterSave)
-        .catch(() => { showLoader(false); showToast('Error al guardar en Firebase', true); });
+        .then(() => afterSave())
+        .catch((e) => { console.error('[Producto] Error al guardar en Firebase:', e); showLoader(false); showToast('Error al guardar en Firebase', true); });
     } else {
       // Local fallback — no Firebase yet
       afterSave();
@@ -1888,9 +1900,9 @@ async function loadHistorial(productoId) {
   try {
     let entries = [];
     if (window.fbGetHistorial) {
-      try { entries = await window.fbGetHistorial(productoId); } catch(e) { entries = getHistorialLocal(productoId); }
+      entries = await window.fbGetHistorial(productoId);
     } else {
-      entries = getHistorialLocal(productoId);
+      throw new Error('Firebase no está disponible para leer historial');
     }
     const c2 = document.getElementById('historialContent');
     const c = c2;
