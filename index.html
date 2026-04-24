@@ -1184,12 +1184,27 @@ async function checkAdminPass(pass) {
 
 // ════════ STATE ════════
 
+// Responsables del historial de cambios: SOLO Firebase
+let adminResponsablesCache = [];
+
 function getAdminResponsables() {
-  return JSON.parse(localStorage.getItem('chem_admin_responsables') || '[]');
+  return adminResponsablesCache;
 }
-function saveAdminResponsables(list) {
-  localStorage.setItem('chem_admin_responsables', JSON.stringify(list));
+
+async function loadAdminResponsables() {
+  try {
+    if (window.fbGetResponsables) {
+      const nombres = await window.fbGetResponsables('admin');
+      adminResponsablesCache = [...new Set((nombres || []).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+    }
+  } catch(e) {
+    console.error('Error cargando responsables admin desde Firebase:', e);
+    showToast('No se pudieron cargar los responsables desde Firebase', true);
+  }
+  populateAdminResponsableSelect();
+  return adminResponsablesCache;
 }
+
 function populateAdminResponsableSelect() {
   const sel = document.getElementById('amResponsable');
   if (!sel) return;
@@ -1197,26 +1212,46 @@ function populateAdminResponsableSelect() {
   sel.innerHTML = '<option value="">— Seleccionar —</option>';
   getAdminResponsables().forEach(r => {
     const o = document.createElement('option');
-    o.value = r; o.textContent = r; sel.appendChild(o);
+    o.value = r;
+    o.textContent = r;
+    sel.appendChild(o);
   });
-  if (cur) sel.value = cur;
+  if (cur && getAdminResponsables().includes(cur)) sel.value = cur;
 }
+
 function openAddAdminResponsable() {
   document.getElementById('adminRespInput').value = '';
   (document.getElementById('adminRespOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.add('open');
   setTimeout(() => document.getElementById('adminRespInput').focus(), 100);
 }
+
 function closeAddAdminResponsable() {
   (document.getElementById('adminRespOverlay')||{classList:{add:()=>{},remove:()=>{},toggle:()=>{}}}).classList.remove('open');
 }
-function confirmAddAdminResponsable() {
+
+async function confirmAddAdminResponsable() {
   const nombre = document.getElementById('adminRespInput').value.trim();
   if (!nombre) return;
-  const list = getAdminResponsables();
-  if (!list.includes(nombre)) { list.push(nombre); saveAdminResponsables(list); }
-  populateAdminResponsableSelect();
-  document.getElementById('amResponsable').value = nombre;
-  closeAddAdminResponsable();
+
+  showLoader(true);
+  try {
+    if (!window.fbAddResponsable) throw new Error('Firebase no está disponible para guardar responsable');
+    await window.fbAddResponsable(nombre, 'admin');
+
+    if (!adminResponsablesCache.includes(nombre)) {
+      adminResponsablesCache.push(nombre);
+      adminResponsablesCache = [...new Set(adminResponsablesCache)].sort((a,b) => a.localeCompare(b));
+    }
+
+    populateAdminResponsableSelect();
+    document.getElementById('amResponsable').value = nombre;
+    closeAddAdminResponsable();
+    showToast('Responsable guardado en Firebase');
+  } catch(e) {
+    console.error('Error guardando responsable admin:', e);
+    showToast('No se pudo guardar el responsable en Firebase', true);
+  }
+  showLoader(false);
 }
 
 // ════════ HISTORIAL localStorage (deshabilitado: historial solo Firebase) ════════
@@ -1570,7 +1605,7 @@ function openAdminModal(prod = null) {
   const notaInp = document.getElementById('amNotaCambio');
   if (notaInp) { notaInp.value = ''; }
   const notaCount = document.getElementById('amNotaCount'); if (notaCount) notaCount.textContent = '0/100';
-  populateAdminResponsableSelect();
+  loadAdminResponsables();
   document.getElementById('amNombre').value = prod ? prod.nombre : '';
   populateMarcaSelect();
   document.getElementById('amMarca').value = prod ? (prod.marca||'') : '';
@@ -1823,11 +1858,17 @@ function guardarProducto() {
       if (diffs.length === 0) return;
 
       const notaCambio = (document.getElementById('amNotaCambio').value || '').trim();
+      const responsableCambio = (document.getElementById('amResponsable').value || '').trim();
+      if (!responsableCambio) {
+        showLoader(false);
+        showToast('Selecciona o agrega un responsable antes de guardar el cambio', true);
+        throw new Error('Responsable requerido');
+      }
       const now = new Date();
       const cambio = {
         productoId: state.editingId,
         productoNombre: nombre,
-        responsable: (document.getElementById('amResponsable').value || '').trim() || 'Sin nombre',
+        responsable: responsableCambio,
         timestamp: now.getTime(),
         fecha: now.toLocaleDateString('es-CL'),
         hora: now.toLocaleTimeString('es-CL', { hour:'2-digit', minute:'2-digit' }),
