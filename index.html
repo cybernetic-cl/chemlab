@@ -43,7 +43,7 @@ window.fbSignIn = async function(role) {
   }
 };
 
-async function loadAll(role) {
+window.loadAll = async function(role) {
   showLoader(true);
   try {
     // Silent Firebase Auth — required for Firestore access
@@ -1558,32 +1558,26 @@ function doLogin() {
   if (mode === 'admin') {
     const pass = document.getElementById('loginPass').value;
     checkAdminPass(pass).then(ok => {
-      if (!ok) {
-        document.getElementById('loginError').style.display = 'block';
-        return;
-      }
+      if (!ok) { document.getElementById('loginError').style.display = 'block'; return; }
       state.responsable = 'Administrador';
       showLoader(true);
-      loadAll('admin').then(() => _completeLogin(mode));
+      window.loadAll('admin').then(() => _completeLogin(mode));
     });
     return;
   }
   if (mode === 'user') {
     const pass = document.getElementById('loginUserPass').value;
     checkUserPass(pass).then(ok => {
-      if (!ok) {
-        document.getElementById('loginUserError').style.display = 'block';
-        return;
-      }
+      if (!ok) { document.getElementById('loginUserError').style.display = 'block'; return; }
       showLoader(true);
-      loadAll('user').then(() => _completeLogin(mode));
+      window.loadAll('user').then(() => _completeLogin(mode));
     });
     return;
   }
   if (mode === 'prod') {
     state.responsable = '';
     showLoader(true);
-    loadAll('user').then(() => {
+    window.loadAll('user').then(() => {
       showLoader(false);
       document.getElementById('loginScreen').style.display = 'none';
       openProduccionPanel();
