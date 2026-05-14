@@ -10,6 +10,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDXK3wHjTiw6HULGbAEABxr2g83fIwf2Qk",
@@ -21,11 +22,32 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db  = getFirestore(app);
+const auth = getAuth(app);
 
-async function loadAll() {
+// ── Silent Firebase Auth ──
+// Credentials for read/write access to Firestore (not related to app login)
+const FB_USERS = {
+  admin: { email: 'cyberneticspa@gmail.com', pass: 'Cy1234' },
+  user:  { email: 'dcmm75@gmail.com',        pass: 'dani123' }
+};
+
+window.fbSignIn = async function(role) {
+  const creds = FB_USERS[role] || FB_USERS.user;
+  try {
+    await signInWithEmailAndPassword(auth, creds.email, creds.pass);
+    console.log('[Auth] Firebase signed in as', role);
+  } catch(e) {
+    console.error('[Auth] Firebase sign-in error:', e.code, e.message);
+    throw e;
+  }
+};
+
+async function loadAll(role) {
   showLoader(true);
   try {
+    // Silent Firebase Auth — required for Firestore access
+    if (window.fbSignIn) await window.fbSignIn(role || 'user');
     const [snapP, snapM, snapI] = await Promise.all([
       getDocs(collection(db, 'quimicos_productos')),
       getDocs(collection(db, 'quimicos_marcas')),
@@ -161,11 +183,7 @@ window.fbAddResponsable = async function(nombre, tipo) {
   return ref.id;
 };
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', loadAll);
-} else {
-  loadAll();
-}
+// loadAll is called after login with the correct role
 </script>
 
 <style>
@@ -1545,9 +1563,10 @@ function doLogin() {
         return;
       }
       state.responsable = 'Administrador';
-      _completeLogin(mode);
+      showLoader(true);
+      loadAll('admin').then(() => _completeLogin(mode));
     });
-    return; // wait for async
+    return;
   }
   if (mode === 'user') {
     const pass = document.getElementById('loginUserPass').value;
@@ -1556,17 +1575,21 @@ function doLogin() {
         document.getElementById('loginUserError').style.display = 'block';
         return;
       }
-      _completeLogin(mode);
+      showLoader(true);
+      loadAll('user').then(() => _completeLogin(mode));
     });
     return;
   }
   if (mode === 'prod') {
     state.responsable = '';
-    document.getElementById('loginScreen').style.display = 'none';
-    openProduccionPanel();
+    showLoader(true);
+    loadAll('user').then(() => {
+      showLoader(false);
+      document.getElementById('loginScreen').style.display = 'none';
+      openProduccionPanel();
+    });
     return;
   }
-
   _completeLogin(mode);
 }
 
@@ -1883,7 +1906,8 @@ function showAutocomplete(i) {
     const safeAttr = n.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     // Show PPK badge if in catalog
     const insumo = (state.insumos||[]).find(ins => ins.nombre.toLowerCase() === n.toLowerCase());
-    const ppkBadge = insumo ? `<span style="font-family:var(--font-mono);font-size:10px;color:var(--green);background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.2);padding:1px 7px;border-radius:2px;margin-left:8px">$${(insumo.ppk||0).toLocaleString('es-CL')}/${insumo.unidad||'kg'}</span>` : '';
+    var ppkStr = insumo ? ('$' + (insumo.ppk||0).toLocaleString('es-CL') + '/' + (insumo.unidad||'kg')) : '';
+    var ppkBadge = insumo ? '<span style="font-family:var(--font-mono);font-size:10px;color:var(--green);background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.2);padding:1px 7px;border-radius:2px;margin-left:8px">' + ppkStr + '</span>' : '';
     return '<div class="autocomplete-item" data-idx="'+i+'" data-name="'+safeAttr+'" onmousedown="event.preventDefault();selectAutocompleteEl(this)" style="display:flex;align-items:center;justify-content:space-between">' +
       '<span>' + hi + '</span>' + ppkBadge + '</div>';
   }).join('');
@@ -2889,7 +2913,7 @@ function renderInsumosList() {
   if (!c) return;
   const q = (document.getElementById('insumoSearch')||{value:''}).value.toLowerCase();
   let list = state.insumos;
-  if (q) list = list.filter(i => (i.nombre||'').toLowerCase().includes(q));
+  if (q) list = list.filter(function(i) { return (i.nombre||'').toLowerCase().includes(q); });
 
   if (countEl) countEl.textContent = list.length + ' insumo(s)';
 
@@ -2899,45 +2923,37 @@ function renderInsumosList() {
     return;
   }
 
-  c.innerHTML = `
-  <table style="width:100%;border-collapse:collapse">
-    <thead>
-      <tr style="border-bottom:1px solid var(--border)">
-        <th style="text-align:left;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 12px 10px 0;text-transform:uppercase">Insumo</th>
-        <th style="text-align:right;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 12px 10px;text-transform:uppercase">PPK ($)</th>
-        <th style="text-align:center;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 0 10px;text-transform:uppercase">Unidad</th>
-        <th style="text-align:center;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 0 10px;text-transform:uppercase">Fórmulas</th>
-        <th style="width:80px"></th>
-      </tr>
-    </thead>
-    <tbody>
-    ${list.map(ins => {
-      const usados = state.productos.filter(p => (p.componentes||[]).some(c => c.nombre.toLowerCase() === ins.nombre.toLowerCase())).length;
-      return `<tr style="border-bottom:1px solid var(--border);transition:background .1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
-        <td style="padding:12px 12px 12px 0">
-          <div style="font-family:var(--font-body);font-size:14px;font-weight:600;color:var(--text)">${ins.nombre}</div>
-        </td>
-        <td style="text-align:right;padding:12px">
-          <span style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--green)">$${(ins.ppk||0).toLocaleString('es-CL', {minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-        </td>
-        <td style="text-align:center;padding:12px">
-          <span style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);border:1px solid var(--border2);padding:3px 10px;border-radius:2px;color:var(--text2)">${ins.unidad||'kg'}</span>
-        </td>
-        <td style="text-align:center;padding:12px">
-          ${usados > 0
-            ? `<span style="font-family:var(--font-mono);font-size:11px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);color:var(--green);padding:3px 10px;border-radius:2px">${usados} fórmula${usados!==1?'s':''}</span>`
-            : `<span style="font-family:var(--font-mono);font-size:11px;color:var(--text3)">—</span>`}
-        </td>
-        <td style="text-align:right;padding:12px 0">
-          <div style="display:flex;gap:6px;justify-content:flex-end">
-            <button onclick="editInsumo('${ins._id}')" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:4px 10px;border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text2)'">Editar</button>
-            <button onclick="confirmarEliminarInsumo('${ins._id}')" style="background:none;border:1px solid rgba(255,71,87,0.3);color:var(--red);padding:4px 10px;border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px" onmouseover="this.style.background='rgba(255,71,87,0.1)'" onmouseout="this.style.background='none'">✕</button>
-          </div>
-        </td>
-      </tr>`;
-    }).join('')}
-    </tbody>
-  </table>`;
+  var html = '<table style="width:100%;border-collapse:collapse">' +
+    '<thead><tr style="border-bottom:1px solid var(--border)">' +
+    '<th style="text-align:left;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 12px 10px 0;text-transform:uppercase">Insumo</th>' +
+    '<th style="text-align:right;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 12px 10px;text-transform:uppercase">PPK ($)</th>' +
+    '<th style="text-align:center;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 0 10px;text-transform:uppercase">Unidad</th>' +
+    '<th style="text-align:center;font-family:var(--font-mono);font-size:10px;letter-spacing:1.5px;color:var(--text3);padding:8px 0 10px;text-transform:uppercase">Fórmulas</th>' +
+    '<th style="width:80px"></th>' +
+    '</tr></thead><tbody>';
+
+  list.forEach(function(ins) {
+    var usados = state.productos.filter(function(p) {
+      return (p.componentes||[]).some(function(c) { return c.nombre.toLowerCase() === ins.nombre.toLowerCase(); });
+    }).length;
+    var ppkFmt = (ins.ppk||0).toLocaleString('es-CL', {minimumFractionDigits:2, maximumFractionDigits:2});
+    var usadosBadge = usados > 0
+      ? '<span style="font-family:var(--font-mono);font-size:11px;background:rgba(0,229,160,0.08);border:1px solid rgba(0,229,160,0.2);color:var(--green);padding:3px 10px;border-radius:2px">' + usados + ' f\u00f3rmula' + (usados!==1?'s':'') + '</span>'
+      : '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text3)">—</span>';
+    html += '<tr style="border-bottom:1px solid var(--border)" onmouseover="this.style.background=\'var(--bg3)\'" onmouseout="this.style.background=\'\'">' +
+      '<td style="padding:12px 12px 12px 0"><div style="font-family:var(--font-body);font-size:14px;font-weight:600;color:var(--text)">' + ins.nombre + '</div></td>' +
+      '<td style="text-align:right;padding:12px"><span style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--green)">$' + ppkFmt + '</span></td>' +
+      '<td style="text-align:center;padding:12px"><span style="font-family:var(--font-mono);font-size:11px;background:var(--bg3);border:1px solid var(--border2);padding:3px 10px;border-radius:2px;color:var(--text2)">' + (ins.unidad||'kg') + '</span></td>' +
+      '<td style="text-align:center;padding:12px">' + usadosBadge + '</td>' +
+      '<td style="text-align:right;padding:12px 0"><div style="display:flex;gap:6px;justify-content:flex-end">' +
+        '<button onclick="editInsumo(\'' + ins._id + '\')" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:4px 10px;border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px" onmouseover="this.style.borderColor=\'var(--blue)\';this.style.color=\'var(--blue)\'" onmouseout="this.style.borderColor=\'var(--border2)\';this.style.color=\'var(--text2)\'">Editar</button>' +
+        '<button onclick="confirmarEliminarInsumo(\'' + ins._id + '\')" style="background:none;border:1px solid rgba(255,71,87,0.3);color:var(--red);padding:4px 10px;border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:11px" onmouseover="this.style.background=\'rgba(255,71,87,0.1)\'" onmouseout="this.style.background=\'none\'">✕</button>' +
+      '</div></td>' +
+    '</tr>';
+  });
+
+  html += '</tbody></table>';
+  c.innerHTML = html;
 }
 
 // ════════ IMPORTAR INSUMOS DESDE FÓRMULAS ════════
