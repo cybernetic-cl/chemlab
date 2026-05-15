@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChemLab — Fórmulas Químicas</title>
+<title>ForQ — Fórmulas Químicas</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 
 <!-- Firebase -->
@@ -314,6 +315,18 @@ body::before {
   transition:all .2s;
 }
 .btn-login:hover { background:#00ffb3; box-shadow:0 0 20px var(--green-glow); }
+.btn-login:disabled { opacity:0.8; cursor:not-allowed; }
+.btn-login .login-spinner {
+  display:inline-block;
+  width:14px; height:14px;
+  border:2px solid rgba(0,0,0,0.25);
+  border-top-color:#000;
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+  vertical-align:middle;
+  margin-right:8px;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
 .login-hint { margin-top:16px; font-family:var(--font-mono); font-size:11px; color:var(--text3); text-align:center; }
 
 /* APP LAYOUT */
@@ -825,7 +838,7 @@ body::before {
 <!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-wrap">
-    <div class="login-logo atom-wrap"><div class="atom lg"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>CHEMLAB</div>
+    <div class="login-logo atom-wrap"><div class="atom lg"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>ForQ</div>
     <div class="login-sub">Sistema de Fórmulas Químicas</div>
     <div class="login-card">
       <div class="field">
@@ -846,7 +859,7 @@ body::before {
         <input type="password" id="loginUserPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
         <div id="loginUserError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Contraseña incorrecta</div>
       </div>
-      <button class="btn-login" onclick="doLogin()">ACCEDER</button>
+      <button class="btn-login" id="btnLogin" onclick="doLogin()">ACCEDER</button>
     </div>
   </div>
 </div>
@@ -854,7 +867,7 @@ body::before {
 <!-- APP -->
 <div id="app">
   <div class="topbar">
-    <div class="topbar-logo atom-wrap"><div class="atom sm"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>CHEMLAB<span id="topMode"></span></div>
+    <div class="topbar-logo atom-wrap"><div class="atom sm"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>ForQ<span id="topMode"></span></div>
     <div class="topbar-right">
       <span class="mode-badge" id="modeBadge"></span>
       <button id="btnMarcas" class="btn-logout" onclick="openMarcasPanel()" style="display:none;border-color:rgba(0,229,160,0.3);color:var(--green)">MARCAS</button>
@@ -1105,7 +1118,7 @@ body::before {
 <!-- GESTIÓN ECOMMERCE -->
 <div id="produccionPanel" style="display:none;min-height:100vh;background:var(--bg);position:relative;z-index:1">
   <div class="topbar">
-    <div class="topbar-logo atom-wrap"><div class="atom sm"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>CHEMLAB<span style="color:var(--amber);font-size:11px;font-family:var(--font-mono);letter-spacing:2px;margin-left:8px"> · PRODUCCIÓN</span></div>
+    <div class="topbar-logo atom-wrap"><div class="atom sm"><div class="atom-nucleus"></div><div class="atom-orbit" style="--r:0deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:60deg"><div class="atom-electron"></div></div><div class="atom-orbit" style="--r:120deg"><div class="atom-electron"></div></div></div>ForQ<span style="color:var(--amber);font-size:11px;font-family:var(--font-mono);letter-spacing:2px;margin-left:8px"> · PRODUCCIÓN</span></div>
     <div class="topbar-right">
       <button class="btn-theme" onclick="toggleTheme()" title="Cambiar tema">🌙</button>
       <button class="btn-logout" onclick="doLogout()">SALIR</button>
@@ -1483,7 +1496,7 @@ function exportFormulasExcel() {
   // Build CSV content (Excel compatible)
   const rows = [];
   // Title row
-  rows.push(['CHEMLAB — Exportación de Fórmulas Químicas']);
+  rows.push(['ForQ — Exportación de Fórmulas Químicas']);
   rows.push(['Generado:', new Date().toLocaleString('es-CL')]);
   rows.push([]);
 
@@ -1519,7 +1532,7 @@ function exportFormulasExcel() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = 'chemlab_formulas_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.download = 'forq_formulas_' + new Date().toISOString().slice(0,10) + '.csv';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1553,6 +1566,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 }); // DOMContentLoaded
 
+function setLoginLoading(on) {
+  var btn = document.getElementById('btnLogin');
+  if (!btn) return;
+  if (on) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="login-spinner"></span>INGRESANDO...';
+  } else {
+    btn.disabled = false;
+    btn.innerHTML = 'ACCEDER';
+  }
+}
+
 function doLogin() {
   const mode = document.getElementById('loginMode').value;
   if (mode === 'admin') {
@@ -1560,8 +1585,8 @@ function doLogin() {
     checkAdminPass(pass).then(ok => {
       if (!ok) { document.getElementById('loginError').style.display = 'block'; return; }
       state.responsable = 'Administrador';
-      showLoader(true);
-      window.loadAll('admin').then(() => _completeLogin(mode));
+      setLoginLoading(true);
+      window.loadAll('admin').then(() => { setLoginLoading(false); _completeLogin(mode); }).catch(() => setLoginLoading(false));
     });
     return;
   }
@@ -1569,19 +1594,19 @@ function doLogin() {
     const pass = document.getElementById('loginUserPass').value;
     checkUserPass(pass).then(ok => {
       if (!ok) { document.getElementById('loginUserError').style.display = 'block'; return; }
-      showLoader(true);
-      window.loadAll('user').then(() => _completeLogin(mode));
+      setLoginLoading(true);
+      window.loadAll('user').then(() => { setLoginLoading(false); _completeLogin(mode); }).catch(() => setLoginLoading(false));
     });
     return;
   }
   if (mode === 'prod') {
     state.responsable = '';
-    showLoader(true);
+    setLoginLoading(true);
     window.loadAll('user').then(() => {
-      showLoader(false);
+      setLoginLoading(false);
       document.getElementById('loginScreen').style.display = 'none';
       openProduccionPanel();
-    });
+    }).catch(() => setLoginLoading(false));
     return;
   }
   _completeLogin(mode);
