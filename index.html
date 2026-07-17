@@ -851,13 +851,16 @@ body::before {
     <div class="login-sub">Sistema de Fórmulas Químicas</div>
     <div class="login-card">
       <div class="field">
-        <label>Correo</label>
-        <input type="email" id="loginEmail" autocomplete="username" placeholder="tucorreo@cybernetic.cl" onkeydown="if(event.key==='Enter')doLogin()">
+        <label>Usuario</label>
+        <select id="loginUser">
+          <option value="denny">👤 Denny</option>
+          <option value="cyber">🔑 Cyber</option>
+        </select>
       </div>
       <div class="field">
         <label>Contraseña</label>
         <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
-        <div id="loginError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Correo o contraseña incorrectos</div>
+        <div id="loginError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Usuario o contraseña incorrectos</div>
       </div>
       <div class="field">
         <label>Al ingresar, abrir</label>
@@ -1573,13 +1576,20 @@ function setLoginLoading(on) {
 }
 
 async function doLogin() {
-  const email = (document.getElementById('loginEmail')||{}).value || '';
+  // Mapa de usuario visible → correo real de Firebase.
+  // (La contraseña NO está aquí; la valida Firebase en el servidor.)
+  const EMAILS = {
+    denny: 'dcmm75@gmail.com',
+    cyber: 'cyberneticspa@gmail.com'
+  };
+  const userKey = (document.getElementById('loginUser')||{}).value || 'denny';
+  const email = EMAILS[userKey] || EMAILS.denny;
   const pass  = (document.getElementById('loginPass')||{}).value || '';
   const errEl = document.getElementById('loginError');
   if (errEl) errEl.style.display = 'none';
 
-  if (!email || !pass) {
-    if (errEl) { errEl.textContent = 'Ingresa tu correo y contraseña'; errEl.style.display = 'block'; }
+  if (!pass) {
+    if (errEl) { errEl.textContent = 'Ingresa tu contraseña'; errEl.style.display = 'block'; }
     return;
   }
 
@@ -1639,7 +1649,7 @@ function doLogout() {
   document.getElementById('produccionPanel').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   const p = document.getElementById('loginPass'); if (p) p.value = '';
-  const em = document.getElementById('loginEmail'); if (em) em.value = '';
+  const us = document.getElementById('loginUser'); if (us) us.value = 'denny';
   const sel = document.getElementById('loginMode'); if (sel) sel.value = 'user';
   const err = document.getElementById('loginError'); if (err) err.style.display = 'none';
 }
