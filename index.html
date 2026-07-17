@@ -11,8 +11,10 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, doc, addDoc, getDocs, deleteDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
+// NOTA: la apiKey de Firebase es un identificador público del proyecto, no un secreto.
+// La seguridad real vive en las Reglas de Firestore (ver comentario al final de este script).
 const firebaseConfig = {
   apiKey: "AIzaSyDXK3wHjTiw6HULGbAEABxr2g83fIwf2Qk",
   authDomain: "chemlab-713fc.firebaseapp.com",
@@ -26,29 +28,36 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 const auth = getAuth(app);
 
-// ── Silent Firebase Auth ──
-// Credentials for read/write access to Firestore (not related to app login)
-const FB_USERS = {
-  admin: { email: 'cyberneticspa@gmail.com', pass: 'Cy1234' },
-  user:  { email: 'dcmm75@gmail.com',        pass: 'dani123' }
+// ── Autenticación real con email + contraseña ──
+// Cada persona usa su propia cuenta de Firebase. NO hay contraseñas en el código.
+// El rol (admin/user) se resuelve leyendo el documento del usuario en Firestore,
+// no se decide en el cliente.
+window.fbSignInEmail = async function(email, pass) {
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
+  return cred.user;
 };
 
-window.fbSignIn = async function(role) {
-  const creds = FB_USERS[role] || FB_USERS.user;
+window.fbSignOut = async function() {
+  try { await signOut(auth); } catch(e) { /* noop */ }
+};
+
+// Lee el rol del usuario autenticado desde la colección 'usuarios' (doc id = uid).
+// Si no existe o no tiene rol válido, se asume el rol de menor privilegio ('user').
+window.fbGetRole = async function(uid) {
   try {
-    await signInWithEmailAndPassword(auth, creds.email, creds.pass);
-    console.log('[Auth] Firebase signed in as', role);
+    const snap = await getDoc(doc(db, 'usuarios', uid));
+    const rol = snap.exists() ? (snap.data().rol || 'user') : 'user';
+    return (rol === 'admin') ? 'admin' : 'user';
   } catch(e) {
-    console.error('[Auth] Firebase sign-in error:', e.code, e.message);
-    throw e;
+    console.error('[Auth] No se pudo leer el rol:', e.code || e.message);
+    return 'user';
   }
 };
 
 window.loadAll = async function(role) {
   showLoader(true);
   try {
-    // Silent Firebase Auth — required for Firestore access
-    if (window.fbSignIn) await window.fbSignIn(role || 'user');
+    // El usuario ya está autenticado (doLogin lo hizo). Aquí solo cargamos datos.
     const [snapP, snapM, snapI] = await Promise.all([
       getDocs(collection(db, 'quimicos_productos')),
       getDocs(collection(db, 'quimicos_marcas')),
@@ -842,22 +851,21 @@ body::before {
     <div class="login-sub">Sistema de Fórmulas Químicas</div>
     <div class="login-card">
       <div class="field">
-        <label>Modo de acceso</label>
+        <label>Correo</label>
+        <input type="email" id="loginEmail" autocomplete="username" placeholder="tucorreo@cybernetic.cl" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <div id="loginError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Correo o contraseña incorrectos</div>
+      </div>
+      <div class="field">
+        <label>Al ingresar, abrir</label>
         <select id="loginMode">
-          <option value="user">👤 Usuario — Ver fórmulas</option>
+          <option value="user">📋 Catálogo de fórmulas</option>
           <option value="prod">🏭 Registrar Producción</option>
-          <option value="admin">🔑 Administrador</option>
         </select>
-      </div>
-      <div id="passField" class="field" style="display:none">
-        <label>Contraseña admin</label>
-        <input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
-        <div id="loginError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Contraseña incorrecta</div>
-      </div>
-      <div id="userPassField" class="field" style="display:none">
-        <label>Contraseña usuario</label>
-        <input type="password" id="loginUserPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
-        <div id="loginUserError" style="color:var(--red);font-family:var(--font-mono);font-size:11px;margin-top:6px;display:none">Contraseña incorrecta</div>
+        <div class="login-hint" style="text-align:left;margin-top:6px">Tu nivel de acceso (admin o usuario) se determina por tu cuenta, no por esta opción.</div>
       </div>
       <button class="btn-login" id="btnLogin" onclick="doLogin()">ACCEDER</button>
     </div>
@@ -1454,21 +1462,9 @@ async function getNextCodigo() {
   }
   return getNextCodigoLocal();
 }
-const ADMIN_PASS_HASH = '0e1db2979be2947b6ac7ac3f6275a70c346c49ff3593eff7b2a8dbf0210b7d4f'; // SHA-256
-const USER_PASS_HASH  = 'db96f9a4e73f39c88edd56be2cbd90b2d9aaaaf12e3440ca53d5dc2bb10af29f'; // SHA-256 of dani123
-
-async function hashStr(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
-}
-
-async function checkAdminPass(pass) {
-  return (await hashStr(pass)) === ADMIN_PASS_HASH;
-}
-
-async function checkUserPass(pass) {
-  return (await hashStr(pass)) === USER_PASS_HASH;
-}
+// La verificación de contraseñas ya NO ocurre en el cliente.
+// Firebase Authentication valida las credenciales en el servidor y el rol
+// se obtiene desde Firestore (ver fbGetRole arriba).
 
 // ════════ THEME TOGGLE ════════
 function toggleTheme() {
@@ -1555,15 +1551,13 @@ function calcCostPerLitro(prod) {
 
 // ════════ LOGIN ════════
 document.addEventListener('DOMContentLoaded', function() {
-  // Show user password field by default (user mode is default)
-  document.getElementById('userPassField').style.display = 'block';
-
-  document.getElementById('loginMode').addEventListener('change', function() {
-  document.getElementById('passField').style.display = this.value === 'admin' ? 'block' : 'none';
-  document.getElementById('userPassField').style.display = this.value === 'user' ? 'block' : 'none';
-  document.getElementById('loginError').style.display = 'none';
-  document.getElementById('loginUserError').style.display = 'none';
-});
+  // El correo y la contraseña siempre están visibles; el selector solo elige
+  // qué pantalla abrir tras ingresar. Limpiamos el error al cambiar el modo.
+  const sel = document.getElementById('loginMode');
+  if (sel) sel.addEventListener('change', function() {
+    const err = document.getElementById('loginError');
+    if (err) err.style.display = 'none';
+  });
 }); // DOMContentLoaded
 
 function setLoginLoading(on) {
@@ -1578,38 +1572,45 @@ function setLoginLoading(on) {
   }
 }
 
-function doLogin() {
-  const mode = document.getElementById('loginMode').value;
-  if (mode === 'admin') {
-    const pass = document.getElementById('loginPass').value;
-    checkAdminPass(pass).then(ok => {
-      if (!ok) { document.getElementById('loginError').style.display = 'block'; return; }
-      state.responsable = 'Administrador';
-      setLoginLoading(true);
-      window.loadAll('admin').then(() => { setLoginLoading(false); _completeLogin(mode); }).catch(() => setLoginLoading(false));
-    });
+async function doLogin() {
+  const email = (document.getElementById('loginEmail')||{}).value || '';
+  const pass  = (document.getElementById('loginPass')||{}).value || '';
+  const errEl = document.getElementById('loginError');
+  if (errEl) errEl.style.display = 'none';
+
+  if (!email || !pass) {
+    if (errEl) { errEl.textContent = 'Ingresa tu correo y contraseña'; errEl.style.display = 'block'; }
     return;
   }
-  if (mode === 'user') {
-    const pass = document.getElementById('loginUserPass').value;
-    checkUserPass(pass).then(ok => {
-      if (!ok) { document.getElementById('loginUserError').style.display = 'block'; return; }
-      setLoginLoading(true);
-      window.loadAll('user').then(() => { setLoginLoading(false); _completeLogin(mode); }).catch(() => setLoginLoading(false));
-    });
-    return;
-  }
-  if (mode === 'prod') {
-    state.responsable = '';
-    setLoginLoading(true);
-    window.loadAll('user').then(() => {
-      setLoginLoading(false);
+
+  setLoginLoading(true);
+  try {
+    // 1) Firebase valida las credenciales en el servidor
+    const user = await window.fbSignInEmail(email, pass);
+    // 2) El rol se lee desde Firestore (no se decide en el cliente)
+    const mode = await window.fbGetRole(user.uid);
+    // 3) 'goProduccion' es una preferencia de pantalla, no un nivel de acceso
+    const goProduccion = ((document.getElementById('loginMode')||{}).value === 'prod');
+
+    state.responsable = (mode === 'admin') ? 'Administrador' : (user.email || '');
+    await window.loadAll(mode);
+    setLoginLoading(false);
+
+    if (goProduccion) {
       document.getElementById('loginScreen').style.display = 'none';
+      state.mode = mode;
       openProduccionPanel();
-    }).catch(() => setLoginLoading(false));
-    return;
+    } else {
+      _completeLogin(mode);
+    }
+  } catch(e) {
+    setLoginLoading(false);
+    console.error('[Auth] login error:', e.code || e.message);
+    if (errEl) {
+      errEl.textContent = 'Correo o contraseña incorrectos';
+      errEl.style.display = 'block';
+    }
   }
-  _completeLogin(mode);
 }
 
 function _completeLogin(mode) {
@@ -1631,16 +1632,16 @@ function _completeLogin(mode) {
 }
 
 function doLogout() {
+  if (window.fbSignOut) window.fbSignOut();   // cierra la sesión de Firebase
   state.mode = null;
   state.responsable = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('produccionPanel').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('loginPass').value = '';
-  document.getElementById('loginUserPass').value = '';
-  document.getElementById('loginMode').value = 'user';
-  document.getElementById('passField').style.display = 'none';
-  document.getElementById('userPassField').style.display = 'block';
+  const p = document.getElementById('loginPass'); if (p) p.value = '';
+  const em = document.getElementById('loginEmail'); if (em) em.value = '';
+  const sel = document.getElementById('loginMode'); if (sel) sel.value = 'user';
+  const err = document.getElementById('loginError'); if (err) err.style.display = 'none';
 }
 
 // ════════ RENDER ════════
@@ -2686,12 +2687,14 @@ function eliminarProdRegistro(id) {
   setTimeout(() => document.getElementById('prodDeletePassInput').focus(), 100);
 }
 function confirmDeleteProdRegistro() {
-  const pass = document.getElementById('prodDeletePassInput').value;
-  checkAdminPass(pass).then(ok => {
+  // Solo un usuario con rol admin puede eliminar registros de producción.
+  // El rol proviene de Firestore (state.mode), no de una contraseña en el cliente.
+  (async () => {
+    const ok = (state.mode === 'admin');
     if (!ok) {
       document.getElementById('prodDeletePassError').style.display = 'block';
-      document.getElementById('prodDeletePassInput').value = '';
-      document.getElementById('prodDeletePassInput').focus();
+      const inp = document.getElementById('prodDeletePassInput');
+      if (inp) { inp.value = ''; }
       return;
     }
     const id = state._pendingDeleteProdId;
@@ -2725,8 +2728,7 @@ function confirmDeleteProdRegistro() {
         .then(n => { if(!n) console.warn('[Delete] No encontrado en Firebase:', reg.codigo); })
         .catch(e => console.error('[Delete] Error búsqueda:', e));
     }
-  });
-  return; // async
+  })();
 }
 function closeProdDeletePass() {
   document.getElementById('prodDeletePassOverlay').classList.remove('open');
