@@ -3452,6 +3452,15 @@ button[onclick="importarDesdeFormulas()"]{color:var(--amber)!important;font-weig
   .page-header{padding:16px!important}
   .formula-modal,.admin-modal{border-radius:18px 18px 0 0!important}
 }
+
+/* ───── Sin zoom al escribir en celular ─────
+   iOS/Safari amplía la página cuando un campo tiene letra menor a 16px.
+   En pantallas táctiles todos los campos usan 16px. */
+@media (hover:none) and (pointer:coarse){
+  input,select,textarea,
+  :is(#loginScreen,#app,#produccionPanel,.overlay) :is(input,select,textarea){font-size:16px!important}
+}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 </style>
 <script>
 (function(){
