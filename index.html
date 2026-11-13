@@ -2396,10 +2396,16 @@ function confirmCopy() {
   showLoader(true);
   closeCopyModal();
   if (window.fbGuardarProducto) {
-    window.fbGuardarProducto(copia).then(() => {
+    window.fbGuardarProducto(copia).then(fbId => {
+      copia._id = fbId;
+      state.productos.push(copia);
       showLoader(false); renderApp();
       showToast('Copia creada: ' + nombre);
-    }).catch(() => { showLoader(false); showToast('Error al guardar', true); });
+    }).catch(e => {
+      console.error('[Copiar] Error al guardar en Firebase:', e);
+      showLoader(false);
+      showToast('Error al guardar la copia: ' + (e.code || e.message || ''), true);
+    });
   } else {
     copia._id = Date.now().toString();
     state.productos.push(copia);
@@ -3150,6 +3156,10 @@ document.addEventListener('click', function(e) {
 });
 
 </script>
+
+<!-- LOADER + TOAST (faltaban en el HTML: sin ellos no se veía ningún aviso) -->
+<div id="loader"><div class="spinner"></div></div>
+<div id="toast"></div>
 
 <!-- PROD DELETE PASS MODAL -->
 <div class="overlay" id="prodDeletePassOverlay">
